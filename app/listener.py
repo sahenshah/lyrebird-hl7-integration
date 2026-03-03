@@ -2,9 +2,10 @@ import socket
 import logging
 import requests
 import time
+from app.core.retry import retry
 
 from hl7apy.parser import parse_message
-from app.core.config import HL7_HOST, HL7_PORT, API_URL, API_TIMEOUT
+from app.core.config import HL7_HOST, HL7_PORT, API_URL, API_TIMEOUT, MAX_RETRIES, RETRY_BACKOFF_BASE
 from app.core.mllp import (
     deframe_message,
     frame_message,
@@ -50,11 +51,31 @@ def get_logger_with_context(control_id="", patient_id="", message_type="", sourc
 
 def send_to_api(payload):
     """
-    Sends the transformed HL7 payload as JSON to the configured API endpoint.
-    Raises an exception if the request fails.
+    Sends the given payload to the configured API endpoint using a POST request.
+    Automatically retries on transient network errors using exponential backoff,
+    with retry parameters loaded from environment variables.
+
+    Args:
+        payload (dict): The JSON-serializable payload to send.
+
+    Returns:
+        requests.Response: The response object from the API call.
+
+    Raises:
+        requests.RequestException: If all retry attempts fail.
     """
-    response = requests.post(API_URL, json=payload, timeout=API_TIMEOUT)
-    response.raise_for_status()
+    def call_api():
+        response = requests.post(API_URL, json=payload, timeout=API_TIMEOUT)
+        response.raise_for_status()
+        return response
+
+    return retry(
+        call_api,
+        max_attempts=MAX_RETRIES,
+        backoff_base=RETRY_BACKOFF_BASE,
+        exceptions=(requests.RequestException,),
+        logger=logging
+    )
 
 def process_hl7_message(hl7_string, conn, addr):
     """

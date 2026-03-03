@@ -244,7 +244,7 @@ The integration test (`test_listener_integration.py`) demonstrates a full roundt
 | **Invalid HL7 structure**  | `test_listener_returns_ae_for_invalid_hl7`           | Malformed HL7 message triggers AE ACK response                                   |
 | **API failure handling**   | `test_listener_returns_ae_when_api_fails`            | Simulated API failure triggers AE ACK response                                   |
 | **API payload validation** | `test_listener_sends_expected_json`                  | Listener sends correct JSON payload to API when receiving a valid HL7 message    |
-
+| **API retry logic**        | `test_send_to_api_retries_and_succeeds`<br>`test_send_to_api_retries_configured_times` | Ensures `send_to_api` retries on transient network errors and respects the configured retry count |
 ---
 
 ## Production Hardening Roadmap
