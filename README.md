@@ -180,6 +180,67 @@ Example transformed payload:
 
 ---
 
+## 🧪 Testing
+
+### How to Run the Tests
+
+All tests are located in the `tests/` directory. To run the full suite:
+
+```sh
+pytest
+```
+or
+```sh
+pytest -v
+```
+
+### Test Types
+
+- **Unit Tests:** Validate individual components (MLLP framing, HL7 parsing, transformation, ACK logic).
+- **Integration Test:** Simulates a real HL7 sender connecting over TCP, sending a message, and receiving an ACK.
+
+### Example: Integration Test
+
+The integration test (`test_listener_integration.py`) demonstrates a full roundtrip:
+- Starts the HL7 listener on a custom host/port in a background thread.
+- Sends a framed HL7 message over TCP.
+- Verifies that an HL7 ACK is returned.
+- Mocks the API call to isolate listener behavior.
+
+---
+
+## Test Coverage Highlights
+
+| Area                     | Test(s)                              | What’s Verified                                                                 |
+|--------------------------|--------------------------------------|---------------------------------------------------------------------------------|
+| **MLLP framing/deframing** | `test_frame_and_deframe_roundtrip`<br>`test_extract_multiple_messages` | Correct wrapping/unwrapping and handling of multiple messages per TCP packet     |
+| **ACK correctness**        | `test_ack_swaps_sender_and_receiver` | Proper MSH sender/receiver swap and ACK code                                    |
+| **HL7 → JSON transformer** | `test_transform_valid_message`       | Extraction of control ID, patient ID, and other key fields                      |
+| **Error handling**         | `test_missing_pid_raises`            | Missing critical segments trigger exceptions or NACKs                            |
+| **Integration**            | `test_listener_returns_ack`          | End-to-end: sender → listener → API → ACK                                        |
+| **Invalid HL7 structure**  | `test_listener_returns_ae_for_invalid_hl7` | Malformed HL7 message triggers AE ACK response                                   |
+| **API failure handling**   | `test_listener_returns_ae_when_api_fails`   | Simulated API failure triggers AE ACK response                                   |
+
+---
+
+## Production Hardening Roadmap
+
+The current test suite validates correctness and core integration behavior.
+The following extensions would further harden the system for real clinical deployments: 
+- **Partial messages:** Simulate TCP packets with incomplete MLLP frames to test buffering logic.
+- **Multiple back-to-back messages:** Test with 3–5 messages in one buffer to catch iteration bugs.
+- **Invalid HL7 structures:** Handle wrong segment separators, missing MSH, or unknown message types (expect AE NACKs).
+- **API failures:** Simulate API errors (500, timeouts, network issues) and verify retry/NACK logic.
+- **Large messages:** Stress test with large HL7 messages (0.5–1 MB) to check buffer/memory handling.
+- **Edge HL7 fields:** Test PID with multiple identifiers, missing optional fields, or uncommon encodings.
+- **Concurrency / multi-connection:** If threading is added, simulate multiple simultaneous HL7 connections.
+
+---
+
+*See `tests/` for implementation details and expand as needed for your use case!*
+
+---
+
 ## MLLP Implementation
 
 Messages are framed according to the MLLP standard:
@@ -235,15 +296,3 @@ Errors are logged for observability.
 - Add structured logging
 
 ---
-
-## License
-
-MIT License
-
----
-
-## References
-
-- [HL7 Standard](https://www.hl7.org/implement/standards/product_brief.cfm?product_id=185)
-- [hl7apy Documentation](https://hl7apy.readthedocs.io/)
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)

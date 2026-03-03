@@ -97,7 +97,7 @@ def process_hl7_message(hl7_string, conn, addr):
         # Send the ACK message back to the client, framed with MLLP
         conn.sendall(frame_message(ack))
 
-def start_listener():
+def start_listener(host=HOST, port=PORT):
     """
     Starts the TCP listener for incoming HL7 messages over MLLP.
     For each connection:
@@ -105,12 +105,13 @@ def start_listener():
     - Extracts and processes complete HL7 messages.
     - Sends ACKs for each message.
     - Handles connection errors and closes the connection cleanly.
+    - Allows custom host and port.
     """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server.bind((HOST, PORT))
+        server.bind((host, port))
         server.listen()
-        logger.info(f"Listening on {HOST}:{PORT}")
+        logger.info(f"Listening on {host}:{port}")
 
         while True:
             conn, addr = server.accept()
