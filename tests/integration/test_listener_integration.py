@@ -20,6 +20,13 @@ def start_server():
     yield
 
 
+@pytest.fixture(autouse=True)
+def clear_idempotency_guard():
+    from app import listener
+    if hasattr(listener, "guard"):
+        listener.guard.clear()
+
+
 def test_listener_returns_ack(monkeypatch):
     """
     Sends a valid HL7 message to the listener and verifies an AA ACK is returned.
@@ -135,3 +142,57 @@ def test_listener_sends_expected_json(monkeypatch):
     # Wait briefly to ensure mock_post is called before assertion
     time.sleep(0.2)
     assert captured_payload == expected_payload
+
+def test_listener_skips_duplicate(monkeypatch):
+    """
+    Send the same HL7 message twice.
+    API should only be called once.
+    """
+
+    call_count = 0
+
+    def mock_post(url, json, timeout):
+        nonlocal call_count
+        call_count += 1
+
+        class Response:
+            status_code = 200
+            def raise_for_status(self): pass
+
+        return Response()
+
+    monkeypatch.setattr("requests.post", mock_post)
+
+    hl7 = open("examples/sample_adt_a01.hl7").read().replace("\n", "\r")
+
+    # Send message first time
+    with socket.create_connection(("127.0.0.1", 2575)) as sock:
+        sock.sendall(frame_message(hl7))
+        sock.recv(4096)
+
+    # Send same message again
+    with socket.create_connection(("127.0.0.1", 2575)) as sock:
+        sock.sendall(frame_message(hl7))
+        sock.recv(4096)
+
+    assert call_count == 1
+
+def test_failed_api_does_not_mark_processed(monkeypatch):
+    call_count = 0
+
+    def mock_post(url, json, timeout):
+        nonlocal call_count
+        call_count += 1
+        raise Exception("API failure")
+
+    monkeypatch.setattr("requests.post", mock_post)
+
+    hl7 = open("examples/sample_adt_a01.hl7").read().replace("\n", "\r")
+
+    # Send twice — both should attempt API
+    for _ in range(2):
+        with socket.create_connection(("127.0.0.1", 2575)) as sock:
+            sock.sendall(frame_message(hl7))
+            sock.recv(4096)
+
+    assert call_count == 2

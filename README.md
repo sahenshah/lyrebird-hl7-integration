@@ -57,6 +57,7 @@ HL7 ACK returned to Sender
 - **Health Endpoint:** `/health` endpoint for readiness and monitoring.
 - **Robust ACK Handling:** Generates HL7-compliant ACK/NACK messages.
 - **Error handling and logging**
+- **Idempotency Guard:** Prevents duplicate processing of HL7 messages by tracking processed message control IDs in an in-memory cache. Duplicate messages are detected and skipped, ensuring each message is only processed once per listener lifetime.
 
 ---
 
