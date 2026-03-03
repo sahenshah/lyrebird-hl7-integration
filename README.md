@@ -250,6 +250,7 @@ The integration test (`test_listener_integration.py`) demonstrates a full roundt
 | **API contract**           | `test_api_accepts_full_payload`<br>`test_api_rejects_missing_patient_mrn`<br>`test_api_accepts_missing_source` | API endpoint accepts valid payloads, rejects invalid ones, and handles optional fields |
 | **Concurrency**            | `test_concurrent_connections`                        | Listener can handle multiple simultaneous HL7 client connections using threads   |
 | **Idempotency**            | `test_idempotency_guard_new_message`<br>`test_idempotency_guard_expired_message` | Duplicate messages are detected and skipped; expired entries are re-processed    |
+| **Edge Cases**             | `test_large_hl7_message`<br>`test_malformed_hl7_message`<br>`test_multiple_back_to_back_messages` | Handles very large messages, malformed HL7 input, and multiple HL7 messages in a single TCP packet (streaming buffer handling) |
 
 ---
 

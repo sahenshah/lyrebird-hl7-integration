@@ -1,3 +1,8 @@
+"""
+Edge markers: @pytest.mark.edge allows you to run only edge-case tests with:
+
+    pytest -m edge
+"""
 import pytest
 from fastapi.testclient import TestClient
 from app.api import app

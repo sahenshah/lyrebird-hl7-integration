@@ -31,7 +31,14 @@ async def receive_message(payload: MessagePayload):
     Receives transformed HL7 messages as JSON payloads.
     Note: This endpoint is intended for integration with the HL7 listener service.
     """
-    logging.info(f"Received payload: {payload.model_dump_json()}")
+    logging.info(
+        f"Received payload: {payload.model_dump_json()}",
+        extra={
+            "control_id": payload.message_control_id,
+            "message_type": payload.message_type,
+            "patient_id": payload.patient.mrn
+        }
+    )
 
     if not payload.patient.mrn:
         raise HTTPException(status_code=400, detail="Missing patient MRN")

@@ -107,8 +107,8 @@ def process_hl7_message(hl7_string, conn, addr):
 
         log.info(f"Processing message from {addr}")
 
-        payload = transform_hl7_to_json(parsed)
-        control_id = payload["message_control_id"]
+        hl7_json = transform_hl7_to_json(parsed)
+        control_id = hl7_json["message_control_id"]
 
         if guard.is_processed(message_control_id):
             log.info(f"[{message_control_id}] Duplicate message detected — skipping API call")
@@ -117,9 +117,18 @@ def process_hl7_message(hl7_string, conn, addr):
             return
 
         try:
-            send_to_api(payload)
+            send_to_api(hl7_json)
             guard.mark_processed(message_control_id)
             log.info(f"[{message_control_id}] Message successfully processed, returning ACK")
+            # Structured log with message metadata
+            logging.info(
+                "Message successfully processed",
+                extra={
+                    "control_id": hl7_json.get("message_control_id"),
+                    "message_type": hl7_json.get("message_type"),
+                    "patient_id": hl7_json.get("patient", {}).get("mrn")
+                }
+            )
             ack = build_ack(parsed, ack_code="AA")
         except Exception as e:
             log.error(f"[{message_control_id}] Processing error: {e}")
