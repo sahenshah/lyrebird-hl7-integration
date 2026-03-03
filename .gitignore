@@ -34,3 +34,6 @@ htmlcov/
 
 # Local config overrides
 *.local
+
+# Environment files
+.env
