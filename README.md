@@ -11,7 +11,6 @@ The goal is to demonstrate core healthcare integration concepts including:
 ---
 ## Architecture Overview
 
-
 ```sh
 HL7 Sender
     │
@@ -52,6 +51,7 @@ HL7 ACK returned to Sender
 - **Buffer Size & Framing Error Limits:** Enforces a buffer size limit (default: 1 MB) and limits repeated framing errors (default: 5) to prevent memory exhaustion or protocol abuse.
 - **JSON transformation layer:** 
 - **FastAPI Backend:** Example REST API endpoint for receiving transformed HL7 messages.
+- **Health Endpoint:** `/health` endpoint for readiness and monitoring.
 - **Robust ACK Handling:** Generates HL7-compliant ACK/NACK messages.
 - **Error handling and logging**
 
@@ -107,6 +107,19 @@ This implementation uses hl7apy 1.3.5.
 uvicorn app.api:app --reload
 ```
 Default: http://localhost:8000
+
+#### Health Check Endpoint
+
+To verify the API is running and ready for monitoring, use:
+
+```sh
+curl http://localhost:8000/health
+```
+
+Expected response:
+```json
+{"status":"ok"}
+```
 
 ### 2. Start the HL7 Listener
 
