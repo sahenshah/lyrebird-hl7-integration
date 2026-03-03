@@ -57,7 +57,8 @@ HL7 ACK returned to Sender
 - **Health Endpoint:** `/health` endpoint for readiness and monitoring.
 - **Robust ACK Handling:** Generates HL7-compliant ACK/NACK messages.
 - **Error handling and logging**
-- **Idempotency Guard:** Prevents duplicate processing of HL7 messages by tracking processed message control IDs in an in-memory cache. Duplicate messages are detected and skipped, ensuring each message is only processed once per listener lifetime.
+- **MLLP Listener:** Supports concurrent client connections using threading.
+- **Idempotency Guard:** Protection is thread-safe via a locked in-memory store.
 
 ---
 
@@ -306,20 +307,24 @@ Errors are logged for observability.
 
 ## Limitations
 
-- No concurrency or async handling
 - No TLS support
 - Minimal HL7 segment coverage
-- No persistence layer
-- Idempotency is currently implemented in-memory and will not survive process restarts. For production or multi-instance deployments, this should be replaced with a shared store (e.g., Redis with SETNX + TTL).
+- No persistence layer for idempotency (currently in-memory and will not survive process restarts; for production or multi-instance deployments, use a shared store such as Redis with SETNX + TTL)
+- Idempotency cache is process-local (not shared across multiple instances)
+- No Docker support
+- No message queue integration (e.g., Kafka)
+- No advanced HL7 validation
+
 ---
 
 ## Future Improvements
 
-- Add async or multi-threaded listener
-- Add message queue (e.g. Kafka)
-- Add retry logic for API failures
-- Add unit and integration tests
-- Add Docker support
-- Add structured logging
-
----
+- Add TLS support for secure connections
+- Expand HL7 segment and field coverage
+- Implement persistent/shared idempotency store (e.g., Redis) for multi-instance and production safety
+- Add Docker support for easier deployment
+- Integrate with message queues (e.g., Kafka) for scalable downstream processing
+- Add advanced HL7 validation and error reporting
+- Add more robust and structured logging
+- Add more comprehensive unit and integration tests
+- Support for additional API endpoints and richer JSON transformation

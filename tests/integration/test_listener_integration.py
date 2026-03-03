@@ -177,6 +177,7 @@ def test_listener_skips_duplicate(monkeypatch):
 
     assert call_count == 1
 
+
 def test_failed_api_does_not_mark_processed(monkeypatch):
     call_count = 0
 
@@ -196,3 +197,38 @@ def test_failed_api_does_not_mark_processed(monkeypatch):
             sock.recv(4096)
 
     assert call_count == 2
+
+def test_multiple_clients_concurrently(monkeypatch):
+    import threading
+
+    call_count = 0
+
+    def mock_post(url, json, timeout):
+        nonlocal call_count
+        call_count += 1
+
+        class Response:
+            status_code = 200
+            def raise_for_status(self): pass
+
+        return Response()
+
+    monkeypatch.setattr("requests.post", mock_post)
+
+    hl7 = open("examples/sample_adt_a01.hl7").read().replace("\n", "\r")
+
+    def send_message():
+        with socket.create_connection(("127.0.0.1", 2575)) as sock:
+            sock.sendall(frame_message(hl7))
+            sock.recv(4096)
+
+    threads = []
+    for _ in range(5):
+        t = threading.Thread(target=send_message)
+        threads.append(t)
+        t.start()
+
+    for t in threads:
+        t.join()
+
+    assert call_count == 1  # because idempotency guard blocks duplicates

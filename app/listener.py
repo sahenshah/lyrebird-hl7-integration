@@ -2,6 +2,7 @@ import socket
 import logging
 import requests
 import time
+import threading
 from app.core.retry import retry
 
 from hl7apy.parser import parse_message
@@ -137,15 +138,39 @@ def process_hl7_message(hl7_string, conn, addr):
         log.info(f"Processed in {duration_ms}ms")
         conn.sendall(frame_message(ack))
 
-def start_listener(host=HL7_HOST, port=HL7_PORT):
+def handle_connection(conn, addr):
     """
-    Starts the TCP listener for incoming HL7 messages over MLLP.
-    For each connection:
+    Handles a single TCP connection:
     - Receives data in a buffer.
     - Extracts and processes complete HL7 messages.
     - Sends ACKs for each message.
     - Handles connection errors and closes the connection cleanly.
-    - Allows custom host and port.
+    """
+    logger.info(f"Connection from {addr}")
+    buffer = b""
+    framing_error_count = 0
+    try:
+        while True:
+            data = conn.recv(4096)
+            if not data:
+                break
+            buffer += data
+            messages, buffer, framing_error_count = extract_messages_from_buffer(buffer, framing_error_count)
+            if framing_error_count >= MAX_FRAMING_ERRORS or len(buffer) > MAX_BUFFER_SIZE:
+                logger.error("Closing connection due to repeated framing errors or buffer overflow.")
+                break
+            for message_str in messages:
+                process_hl7_message(message_str, conn, addr)
+    except Exception as e:
+        logger.exception("Connection error")
+    finally:
+        conn.close()
+        logger.info(f"Connection closed from {addr}")
+
+def start_listener(host=HL7_HOST, port=HL7_PORT):
+    """
+    Starts the TCP listener for incoming HL7 messages over MLLP.
+    Each connection is handled in a separate thread.
     """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -155,26 +180,12 @@ def start_listener(host=HL7_HOST, port=HL7_PORT):
 
         while True:
             conn, addr = server.accept()
-            logger.info(f"Connection from {addr}")
-            buffer = b""
-            framing_error_count = 0
-            try:
-                while True:
-                    data = conn.recv(4096)
-                    if not data:
-                        break
-                    buffer += data
-                    messages, buffer, framing_error_count = extract_messages_from_buffer(buffer, framing_error_count)
-                    if framing_error_count >= MAX_FRAMING_ERRORS or len(buffer) > MAX_BUFFER_SIZE:
-                        logger.error("Closing connection due to repeated framing errors or buffer overflow.")
-                        break
-                    for message_str in messages:
-                        process_hl7_message(message_str, conn, addr)
-            except Exception as e:
-                logger.exception("Connection error")
-            finally:
-                conn.close()
-                logger.info(f"Connection closed from {addr}")
+            thread = threading.Thread(
+                target=handle_connection,
+                args=(conn, addr),
+                daemon=True
+            )
+            thread.start()
 
 if __name__ == "__main__":
     # Entry point: start the HL7 listener service
