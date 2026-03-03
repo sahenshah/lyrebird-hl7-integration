@@ -1,0 +1,36 @@
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environment
+venv/
+.env/
+.envrc
+
+# Editor/IDE files
+.vscode/
+.idea/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Test and coverage outputs
+htmlcov/
+.coverage
+.tox/
+.pytest_cache/
+
+# FastAPI/Uvicorn reload artifacts
+*.pid
+
+# Misc
+*.bak
+
+# Local config overrides
+*.local
