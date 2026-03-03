@@ -1,9 +1,8 @@
 import logging
+from app.core.config import MAX_FRAMING_ERRORS, MAX_BUFFER_SIZE
 
 MLLP_START_BYTE = b"\x0b"
 MLLP_END_BYTES = b"\x1c\x0d"
-MAX_BUFFER_SIZE = 1024 * 1024  # 1 MB
-MAX_FRAMING_ERRORS = 5
 
 def frame_message(message: str) -> bytes:
     return MLLP_START_BYTE + message.encode("utf-8") + MLLP_END_BYTES
