@@ -310,7 +310,7 @@ Errors are logged for observability.
 - No TLS support
 - Minimal HL7 segment coverage
 - No persistence layer
-
+- Idempotency is currently implemented in-memory and will not survive process restarts. For production or multi-instance deployments, this should be replaced with a shared store (e.g., Redis with SETNX + TTL).
 ---
 
 ## Future Improvements
