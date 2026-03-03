@@ -3,6 +3,7 @@ import threading
 import time
 import requests
 import pytest
+from hl7apy.parser import parse_message
 
 from app.listener import start_listener
 from app.core.mllp import frame_message
@@ -90,3 +91,46 @@ def test_listener_returns_ae_when_api_fails(monkeypatch):
         data = s.recv(4096)
 
     assert b"MSA|AE|999999" in data
+
+def test_listener_sends_expected_json(monkeypatch):
+    """
+    Sends a valid HL7 message and verifies the JSON payload sent to the API.
+    Uses the already running listener and avoids starting a new one.
+    """
+    captured_payload = {}
+
+    def mock_post(url, json, timeout):
+        captured_payload.clear()
+        captured_payload.update(json)
+        class Response:
+            status_code = 200
+            def raise_for_status(self): pass
+        return Response()
+
+    monkeypatch.setattr("requests.post", mock_post)
+
+    expected_payload = {
+        "control_id": "123456",
+        "message_type": "ADT^A01",
+        "timestamp": "202603021200",
+        "patient": {
+            "id": "MRN12345",
+            "name": "Doe^John",
+            "dob": "19900101",
+            "sex": "M"
+        },
+        "source": {
+            "sending_app": "SendingApp",
+            "sending_facility": "SendingFacility"
+        }
+    }
+
+    # Read and normalize HL7 message
+    hl7 = open("examples/sample_adt_a01.hl7").read().replace("\n", "\r")
+    # Send HL7 message and receive ACK
+    with socket.create_connection(("127.0.0.1", 2575)) as sock:
+        sock.sendall(frame_message(hl7))
+        sock.recv(4096)
+    # Wait briefly to ensure mock_post is called before assertion
+    time.sleep(0.2)
+    assert captured_payload == expected_payload

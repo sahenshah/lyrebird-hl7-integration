@@ -4,7 +4,7 @@ import requests
 import time
 
 from hl7apy.parser import parse_message
-from app.core.config import HOST, PORT, API_URL, API_TIMEOUT
+from app.core.config import HL7_HOST, HL7_PORT, API_URL, API_TIMEOUT
 from app.core.mllp import (
     deframe_message,
     frame_message,
@@ -13,7 +13,7 @@ from app.core.mllp import (
     MAX_BUFFER_SIZE,
 )
 from app.core.ack import build_ack
-from app.services.transformer import transform_hl7_to_json
+from app.services.transformer import transform_hl7_to_json, normalize_hl7_segments
 from hl7apy.consts import VALIDATION_LEVEL
 
 # Structured logging setup
@@ -68,6 +68,8 @@ def process_hl7_message(hl7_string, conn, addr):
     source_addr = f"{addr[0]}:{addr[1]}"
     log = get_logger_with_context()
     try:
+        # Normalize segment separators before parsing
+        hl7_string = normalize_hl7_segments(hl7_string)
         parsed = parse_message(hl7_string, validation_level=VALIDATION_LEVEL.TOLERANT)
         control_id = parsed.MSH.MSH_10.to_er7() if hasattr(parsed.MSH, "MSH_10") else "unknown"
         patient_id = parsed.PID.PID_3.to_er7() if hasattr(parsed, "PID") and hasattr(parsed.PID, "PID_3") else "unknown"
@@ -97,7 +99,7 @@ def process_hl7_message(hl7_string, conn, addr):
         # Send the ACK message back to the client, framed with MLLP
         conn.sendall(frame_message(ack))
 
-def start_listener(host=HOST, port=PORT):
+def start_listener(host=HL7_HOST, port=HL7_PORT):
     """
     Starts the TCP listener for incoming HL7 messages over MLLP.
     For each connection:

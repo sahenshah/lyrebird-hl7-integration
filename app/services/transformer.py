@@ -23,3 +23,7 @@ def transform_hl7_to_json(message):
             "sending_facility": msh.MSH_4.to_er7(),
         },
     }
+
+def normalize_hl7_segments(message: str) -> str:
+    # Replace CRLF and LF with CR
+    return message.replace('\r\n', '\r').replace('\n', '\r')

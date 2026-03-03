@@ -8,7 +8,9 @@ The goal is to demonstrate core healthcare integration concepts including:
 - ACK/NACK generation
 - Message transformation
 - Downstream API forwarding
+
 ---
+
 ## Architecture Overview
 
 ```sh
@@ -41,6 +43,7 @@ HL7 ACK returned to Sender
     - AE (Application Error) on failure
 
 ---
+
 ## Features
 
 - **HL7 Listener:** Receives HL7 messages over TCP/MLLP, parses them, transforms to JSON, and forwards to a REST API.
@@ -65,7 +68,7 @@ lyrebird-hl7-integration/
 │   ├── core/
 │   │   ├── ack.py         # HL7 ACK message builder
 │   │   ├── mllp.py        # MLLP framing/deframing utilities
-│   │   └── config.py      # Configuration (not shown here)
+│   │   └── config.py      # Configuration (loads from .env)
 │   ├── services/
 │   │   └── transformer.py # HL7-to-JSON transformer
 │   ├── api.py             # FastAPI REST API
@@ -73,6 +76,7 @@ lyrebird-hl7-integration/
 │   └── sender.py          # HL7 sender client
 ├── examples/
 │   └── sample_adt_a01.hl7 # Example HL7 message
+├── .env                   # Environment configuration
 └── README.md
 ```
 
@@ -85,6 +89,7 @@ lyrebird-hl7-integration/
 - [fastapi](https://fastapi.tiangolo.com/)
 - [requests](https://pypi.org/project/requests/)
 - [uvicorn](https://www.uvicorn.org/) (for running FastAPI)
+- [python-dotenv](https://pypi.org/project/python-dotenv/) (for .env support)
 
 Install dependencies:
 
@@ -97,11 +102,28 @@ This implementation uses hl7apy 1.3.5.
 - Parsing is performed with validation_level=0 to allow flexible message handling.
 - Supported HL7 versions (e.g. 2.3.1, 2.5, 2.6) should be used in MSH-12.
 - Messages are expected to follow HL7 v2.x formatting conventions.
+
 ---
 
 ## Usage
 
-### 1. Start the FastAPI Backend
+### 1. Configure Environment
+
+Add a `.env` file in your project root to override default settings:
+
+```
+HL7_HOST=0.0.0.0
+HL7_PORT=2575
+API_URL=http://localhost:8080/api/v1/messages
+BUFFER_SIZE_LIMIT=1048576
+MAX_FRAMING_ERRORS=5
+MAX_RETRIES=3
+RETRY_BACKOFF_BASE=0.5
+IDEMPOTENCY_CACHE_SIZE=1000
+API_TIMEOUT=5
+```
+
+### 2. Start the FastAPI Backend
 
 ```sh
 uvicorn app.api:app --reload
@@ -121,7 +143,7 @@ Expected response:
 {"status":"ok"}
 ```
 
-### 2. Start the HL7 Listener
+### 3. Start the HL7 Listener
 
 ```sh
 python3 -m app.listener
@@ -131,7 +153,7 @@ Expected output:
 Listening on 0.0.0.0:2575
 ```
 
-### 3. Send an HL7 Message
+### 4. Send an HL7 Message
 
 ```sh
 python3 -m app.sender
@@ -197,7 +219,7 @@ pytest -v
 ### Test Types
 
 - **Unit Tests:** Validate individual components (MLLP framing, HL7 parsing, transformation, ACK logic).
-- **Integration Test:** Simulates a real HL7 sender connecting over TCP, sending a message, and receiving an ACK.
+- **Integration Tests:** Simulate a real HL7 sender connecting over TCP, sending a message, and receiving an ACK or NACK.
 
 ### Example: Integration Test
 
@@ -206,20 +228,22 @@ The integration test (`test_listener_integration.py`) demonstrates a full roundt
 - Sends a framed HL7 message over TCP.
 - Verifies that an HL7 ACK is returned.
 - Mocks the API call to isolate listener behavior.
+- Also tests error scenarios such as invalid HL7 and downstream API failures.
 
 ---
 
 ## Test Coverage Highlights
 
-| Area                     | Test(s)                              | What’s Verified                                                                 |
-|--------------------------|--------------------------------------|---------------------------------------------------------------------------------|
+| Area                       | Test(s)                                              | What’s Verified                                                                 |
+|----------------------------|------------------------------------------------------|---------------------------------------------------------------------------------|
 | **MLLP framing/deframing** | `test_frame_and_deframe_roundtrip`<br>`test_extract_multiple_messages` | Correct wrapping/unwrapping and handling of multiple messages per TCP packet     |
-| **ACK correctness**        | `test_ack_swaps_sender_and_receiver` | Proper MSH sender/receiver swap and ACK code                                    |
-| **HL7 → JSON transformer** | `test_transform_valid_message`       | Extraction of control ID, patient ID, and other key fields                      |
-| **Error handling**         | `test_missing_pid_raises`            | Missing critical segments trigger exceptions or NACKs                            |
-| **Integration**            | `test_listener_returns_ack`          | End-to-end: sender → listener → API → ACK                                        |
-| **Invalid HL7 structure**  | `test_listener_returns_ae_for_invalid_hl7` | Malformed HL7 message triggers AE ACK response                                   |
-| **API failure handling**   | `test_listener_returns_ae_when_api_fails`   | Simulated API failure triggers AE ACK response                                   |
+| **ACK correctness**        | `test_ack_swaps_sender_and_receiver`                 | Proper MSH sender/receiver swap and ACK code                                    |
+| **HL7 → JSON transformer** | `test_transform_valid_message`                       | Extraction of control ID, patient ID, and other key fields                      |
+| **Error handling**         | `test_missing_pid_raises`                            | Missing critical segments trigger exceptions or NACKs                            |
+| **Integration**            | `test_listener_returns_ack`                          | End-to-end: sender → listener → API → ACK                                        |
+| **Invalid HL7 structure**  | `test_listener_returns_ae_for_invalid_hl7`           | Malformed HL7 message triggers AE ACK response                                   |
+| **API failure handling**   | `test_listener_returns_ae_when_api_fails`            | Simulated API failure triggers AE ACK response                                   |
+| **API payload validation** | `test_listener_sends_expected_json`                  | Listener sends correct JSON payload to API when receiving a valid HL7 message    |
 
 ---
 
@@ -254,6 +278,7 @@ All inbound messages are validated for proper MLLP framing before parsing.
 - If the buffer exceeds 1 MB or repeated framing errors (default: 5) are detected, the buffer is cleared and the connection is closed to prevent memory exhaustion or protocol abuse.
 
 ---
+
 ## Error Handling
 
 - Invalid MLLP framing → returns AE
@@ -268,6 +293,7 @@ Errors are logged for observability.
 ## Design Decisions
 
 - Single-threaded listener for simplicity and clarity.
+- Streaming buffer management: supports partial and multiple HL7 messages per TCP packet.
 - Validation disabled (validation_level=0) to allow flexible HL7 parsing.
 - ACK always returned, even on processing failure.
 - Separation of concerns:
@@ -277,7 +303,6 @@ Errors are logged for observability.
 
 ## Limitations
 
-- Single-message recv() (no streaming buffer management)
 - No concurrency or async handling
 - No TLS support
 - Minimal HL7 segment coverage
@@ -288,7 +313,6 @@ Errors are logged for observability.
 ## Future Improvements
 
 - Add async or multi-threaded listener
-- Add streaming buffer support
 - Add message queue (e.g. Kafka)
 - Add retry logic for API failures
 - Add unit and integration tests
