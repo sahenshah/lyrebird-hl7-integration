@@ -48,6 +48,8 @@ HL7 ACK returned to Sender
 - **HL7 Sender:** Sends HL7 messages to the listener and prints the received ACK.
 - **HL7 Parsing:** Uses [hl7apy](https://github.com/crs4/hl7apy) for robust HL7 v2.x parsing.
 - **MLLP Framing:** Implements MLLP framing/deframing for HL7 over TCP.
+- **Robust Buffering:** Handles partial and multiple HL7 messages per TCP packet, waiting for complete MLLP frames before processing.
+- **Buffer Size & Framing Error Limits:** Enforces a buffer size limit (default: 1 MB) and limits repeated framing errors (default: 5) to prevent memory exhaustion or protocol abuse.
 - **JSON transformation layer:** 
 - **FastAPI Backend:** Example REST API endpoint for receiving transformed HL7 messages.
 - **Robust ACK Handling:** Generates HL7-compliant ACK/NACK messages.
@@ -171,6 +173,11 @@ Messages are framed according to the MLLP standard:
 - Start block: 0x0b
 - End block: 0x1c0d
 All inbound messages are validated for proper MLLP framing before parsing.
+
+**Robustness Notes:**
+- The listener accumulates incoming data in a buffer and only processes messages when a full MLLP frame is present.
+- Handles multiple and partial HL7 messages per TCP packet.
+- If the buffer exceeds 1 MB or repeated framing errors (default: 5) are detected, the buffer is cleared and the connection is closed to prevent memory exhaustion or protocol abuse.
 
 ---
 ## Error Handling
