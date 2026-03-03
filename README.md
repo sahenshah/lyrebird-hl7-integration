@@ -245,6 +245,8 @@ The integration test (`test_listener_integration.py`) demonstrates a full roundt
 | **API failure handling**   | `test_listener_returns_ae_when_api_fails`            | Simulated API failure triggers AE ACK response                                   |
 | **API payload validation** | `test_listener_sends_expected_json`                  | Listener sends correct JSON payload to API when receiving a valid HL7 message    |
 | **API retry logic**        | `test_send_to_api_retries_and_succeeds`<br>`test_send_to_api_retries_configured_times` | Ensures `send_to_api` retries on transient network errors and respects the configured retry count |
+| **API contract**           | `test_api_accepts_full_payload`<br>`test_api_rejects_missing_patient_mrn`<br>`test_api_accepts_missing_source` | API endpoint accepts valid payloads, rejects invalid ones, and handles optional fields |
+
 ---
 
 ## Production Hardening Roadmap
