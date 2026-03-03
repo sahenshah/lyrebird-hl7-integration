@@ -11,6 +11,8 @@ The goal is to demonstrate core healthcare integration concepts including:
 ---
 ## Architecture Overview
 
+
+```sh
 HL7 Sender
     │
     ▼
@@ -27,6 +29,7 @@ FastAPI Backend (REST)
     │
     ▼
 HL7 ACK returned to Sender
+```
 
 **Flow Summary**
 1. Listener accepts TCP connection.
