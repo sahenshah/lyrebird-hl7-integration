@@ -8,13 +8,17 @@ def transform_hl7_to_json(message):
     if not hasattr(message, "PID") or not message.PID: 
         raise ValueError("Missing PID segment")
 
+     # Split PID_5 into last_name / first_name
+    last_name, first_name = pid.PID_5.to_er7().split('^') if '^' in pid.PID_5.to_er7() else (pid.PID_5.to_er7(), '')
+
     return {
-        "control_id": msh.MSH_10.to_er7(),
+        "message_control_id": msh.MSH_10.to_er7(),
         "message_type": msh.MSH_9.to_er7(),
         "timestamp": msh.MSH_7.to_er7(),
         "patient": {
-            "id": pid.PID_3.to_er7(),
-            "name": pid.PID_5.to_er7(),
+            "mrn": pid.PID_3.to_er7(),
+            "first_name": first_name,
+            "last_name": last_name,
             "dob": pid.PID_7.to_er7(),
             "sex": pid.PID_8.to_er7(),
         },

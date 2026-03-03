@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from typing import Optional
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -8,18 +9,21 @@ app = FastAPI()
 
 
 class Patient(BaseModel):
-    id: str
+    mrn: str
     first_name: str
     last_name: str
     dob: str
-    gender: str
+    sex: str
 
+class Source(BaseModel):
+    sending_app: Optional[str] = None
+    sending_facility: Optional[str] = None
 
 class MessagePayload(BaseModel):
     message_type: str
     message_control_id: str
     patient: Patient
-
+    source: Optional[Source] = None
 
 @app.post("/api/v1/messages")
 async def receive_message(payload: MessagePayload):
@@ -27,10 +31,10 @@ async def receive_message(payload: MessagePayload):
     Receives transformed HL7 messages as JSON payloads.
     Note: This endpoint is intended for integration with the HL7 listener service.
     """
-    logging.info(f"Received payload: {payload.json()}")
+    logging.info(f"Received payload: {payload.model_dump_json()}")
 
-    if not payload.patient.id:
-        raise HTTPException(status_code=400, detail="Missing patient ID")
+    if not payload.patient.mrn:
+        raise HTTPException(status_code=400, detail="Missing patient MRN")
 
     return {"status": "received"}
 

@@ -19,9 +19,10 @@ def test_transform_valid_message():
     parsed = parse_message(hl7)
     result = transform_hl7_to_json(parsed)
 
-    assert result["control_id"] == "123456"
-    assert result["patient"]["id"] == "MRN123"
-    assert result["patient"]["name"] == "Doe^John"
+    assert result["message_control_id"] == "123456"
+    assert result["patient"]["mrn"] == "MRN123"
+    assert result["patient"]["first_name"] == "John"
+    assert result["patient"]["last_name"] == "Doe"
     assert result["patient"]["dob"] == "19900101"
     assert result["patient"]["sex"] == "M"
     assert result["message_type"] == "ADT^A01"

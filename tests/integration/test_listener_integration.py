@@ -110,12 +110,13 @@ def test_listener_sends_expected_json(monkeypatch):
     monkeypatch.setattr("requests.post", mock_post)
 
     expected_payload = {
-        "control_id": "123456",
+        "message_control_id": "123456",
         "message_type": "ADT^A01",
         "timestamp": "202603021200",
         "patient": {
-            "id": "MRN12345",
-            "name": "Doe^John",
+            "mrn": "MRN12345",
+            "first_name": "John",
+            "last_name": "Doe",
             "dob": "19900101",
             "sex": "M"
         },
