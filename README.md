@@ -1,64 +1,81 @@
 # Lyrebird HL7 Integration
 
-This project implements a minimal HL7 v2.x integration service using TCP/MLLP. It receives HL7 messages, parses them, transforms them into JSON, forwards them to a REST API, and returns a standards-compliant HL7 ACK/NACK response.
+![Python](https://img.shields.io/badge/python-3.10+-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-The goal is to demonstrate core healthcare integration concepts including:
-- HL7 v2 message handling
-- MLLP framing over TCP
-- ACK/NACK generation
-- Message transformation
-- Downstream API forwarding
+A minimal HL7 v2.x integration service using TCP/MLLP.  
+It receives HL7 messages, parses them, transforms them to JSON, forwards them to a REST API, and returns HL7-compliant ACK/NACK responses.
 
 ---
 
-## Architecture Overview
+## TL;DR – Quick Start
 
 ```sh
-HL7 Sender
-    │
-    ▼
-MLLP TCP Listener
-    │
-    ▼
-HL7 Parser (hl7apy)
-    │
-    ▼
-HL7 → JSON Transformer
-    │
-    ▼
-FastAPI Backend (REST)
-    │
-    ▼
-HL7 ACK returned to Sender
+# 1. Install dependencies
+pip install -r requirements.txt
+
+# 2. Start FastAPI backend
+uvicorn app.api:app --reload
+
+# 3. Start HL7 listener
+python3 -m app.listener
+
+# 4. Send an HL7 message
+python3 -m app.sender
 ```
 
+Check API health:
+```sh
+curl http://localhost:8000/health
+# Expected: {"status":"ok"}
+```
+
+---
+
+
+## Project Overview
+**Goal**: Demonstrate core healthcare integration concepts:
+- HL7 v2 message handling
+- MLLP framing over TCP
+- ACK/NACK generation
+- HL7 → JSON transformation
+- Downstream API forwarding
+
+**Architecture Diagram:**
+```mermaid
+graph LR
+  A[HL7 Sender] --> B[MLLP TCP Listener]
+  B --> C[HL7 Parser (hl7apy)]
+  C --> D[HL7 → JSON Transformer]
+  D --> E[FastAPI Backend]
+  E --> B[HL7 ACK returned]
+```
+
+
 **Flow Summary**
-1. Listener accepts TCP connection.
-2. Message is deframed using MLLP.
-3. HL7 message is parsed using hl7apy.
-4. Parsed message is transformed into JSON.
-5. JSON is POSTed to a FastAPI endpoint.
-6. Listener returns:
-    - AA (Application Accept) on success
-    - AE (Application Error) on failure
+1. TCP listener accepts connection and receives MLLP-framed HL7 messages. 
+2. Messages are deframed and parsed with hl7apy. 
+3. Parsed messages are transformed into JSON. 
+4. JSON payload is POSTed to FastAPI REST API. 
+5. Listener returns:
+    - AA → Application Accept (success)
+    - AE → Application Error (failure)
 
 ---
 
 ## Features
 
-- **HL7 Listener:** Receives HL7 messages over TCP/MLLP, parses them, transforms to JSON, and forwards to a REST API.
-- **HL7 Sender:** Sends HL7 messages to the listener and prints the received ACK.
-- **HL7 Parsing:** Uses [hl7apy](https://github.com/crs4/hl7apy) for robust HL7 v2.x parsing.
-- **MLLP Framing:** Implements MLLP framing/deframing for HL7 over TCP.
-- **Robust Buffering:** Handles partial and multiple HL7 messages per TCP packet, waiting for complete MLLP frames before processing.
+- **HL7 Listener:** TCP/MLLP server, supports multiple clients via threading. 
+- **HL7 Parsing:** Uses [hl7apy](https://github.com/crs4/hl7apy) for  HL7 v2.x parsing.
+- **MLLP Framing:** Handles partial/multiple messages per TCP packet. 
+- **Robust Buffering:** Configurable buffer size and framing error limits. 
+- **JSON Transformation:** Modular HL7 → JSON transformer.
 - **Buffer Size & Framing Error Limits:** Enforces a buffer size limit (default: 1 MB) and limits repeated framing errors (default: 5) to prevent memory exhaustion or protocol abuse.
-- **JSON transformation layer:** 
-- **FastAPI Backend:** Example REST API endpoint for receiving transformed HL7 messages.
-- **Health Endpoint:** `/health` endpoint for readiness and monitoring.
-- **Robust ACK Handling:** Generates HL7-compliant ACK/NACK messages.
-- **Error handling and logging**
-- **MLLP Listener:** Supports concurrent client connections using threading.
-- **Idempotency Guard:** Protection is thread-safe via a locked in-memory store.
+- **JSON transformation layer:** Modular HL7 → JSON transformer.
+- **FastAPI Backend:** Example REST API endpoint for processed messages.
+- **Idempotency Guard:** Thread-safe in-memory cache to prevent duplicate processing. 
+- **Structured Logging:** Logs key metadata (timestamps, message_type, control_id, patient_id).
+- **Error Handling:** Returns appropriate HL7 ACK/NACK responses.
 
 ---
 
@@ -68,16 +85,17 @@ HL7 ACK returned to Sender
 lyrebird-hl7-integration/
 ├── app/
 │   ├── core/
-│   │   ├── ack.py         # HL7 ACK message builder
-│   │   ├── mllp.py        # MLLP framing/deframing utilities
-│   │   └── config.py      # Configuration (loads from .env)
+│   │   ├── ack.py         # HL7 ACK builder
+│   │   ├── mllp.py        # MLLP framing/deframing
+│   │   └── config.py      # Configuration from .env
 │   ├── services/
-│   │   └── transformer.py # HL7-to-JSON transformer
-│   ├── api.py             # FastAPI REST API
+│   │   └── transformer.py # HL7 → JSON transformer
+│   ├── api.py             # FastAPI backend
 │   ├── listener.py        # HL7 TCP/MLLP listener
 │   └── sender.py          # HL7 sender client
 ├── examples/
 │   └── sample_adt_a01.hl7 # Example HL7 message
+├── tests/                 # Unit and integration tests
 ├── .env                   # Environment configuration
 └── README.md
 ```
@@ -92,6 +110,8 @@ lyrebird-hl7-integration/
 - [requests](https://pypi.org/project/requests/)
 - [uvicorn](https://www.uvicorn.org/) (for running FastAPI)
 - [python-dotenv](https://pypi.org/project/python-dotenv/) (for .env support)
+- [httpx](https://www.python-httpx.org/)
+- [python-json-logger](https://pypi.org/project/python-json-logger/)
 
 Install dependencies:
 
@@ -99,19 +119,11 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-**HL7 Version Notes**
-This implementation uses hl7apy 1.3.5.
-- Parsing is performed with validation_level=0 to allow flexible message handling.
-- Supported HL7 versions (e.g. 2.3.1, 2.5, 2.6) should be used in MSH-12.
-- Messages are expected to follow HL7 v2.x formatting conventions.
-
 ---
 
-## Usage
+## Environment Configuration
 
-### 1. Configure Environment
-
-Add a `.env` file in your project root to override default settings:
+Create an .env file to override default settings:
 
 ```
 HL7_HOST=0.0.0.0
@@ -125,14 +137,24 @@ IDEMPOTENCY_CACHE_SIZE=1000
 API_TIMEOUT=5
 ```
 
-### 2. Start the FastAPI Backend
+---
+
+## Usage
+
+### 1. Start the FastAPI Backend
 
 ```sh
 uvicorn app.api:app --reload
 ```
 Default: http://localhost:8000
 
-#### Health Check Endpoint
+or 
+```sh
+uvicorn app.api:app --port 8080 --log-config logging_config.json
+```
+for valid JSON output. 
+
+### 2. Health Check 
 
 To verify the API is running and ready for monitoring, use:
 
@@ -145,7 +167,7 @@ Expected response:
 {"status":"ok"}
 ```
 
-### 3. Start the HL7 Listener
+### 3. Start HL7 Listener
 
 ```sh
 python3 -m app.listener
@@ -155,7 +177,7 @@ Expected output:
 Listening on 0.0.0.0:2575
 ```
 
-### 4. Send an HL7 Message
+### 4. Send HL7 Messages
 
 ```sh
 python3 -m app.sender
@@ -165,30 +187,28 @@ Expected sender output:
 
 ```sh
 Received ACK message:
-MSH|...
+MSH|^~\&|RecvApp|RecvFac|SendingApp|SendingFac|202603021200||ACK|123456|P|2.3
 MSA|AA|123456
 ```
 
 ---
 
-## Example HL7 Message
+### Example HL7 Message
 
-Located at `examples/sample_adt_a01.hl7`:
+File `examples/sample_adt_a01.hl7`:
 
 ```
 MSH|^~\&|SendingApp|SendingFacility|ReceivingApp|ReceivingFacility|202603021200||ADT^A01|123456|P|2.3
 PID|1||MRN12345||Doe^John||19900101|M|||123 Main St^^City^ST^12345||555-1234
 ```
-Segments must be separated by carriage return (\r).
-MLLP framing is applied automatically by the sender.
 
 ---
 
-## Example JSON Output 
+### Example JSON Output 
 
 Example transformed payload:
 
-```
+```json
 {
   "message_type": "ADT^A01",
   "message_control_id": "123456",
@@ -204,85 +224,61 @@ Example transformed payload:
 
 ---
 
-## 🧪 Testing
+## Testing
 
-### How to Run the Tests
+All tests are located in the `tests/` directory. 
 
-All tests are located in the `tests/` directory. To run the full suite:
-
-```sh
-pytest
-```
-or
+Run the full suite:
 ```sh
 pytest -v
 ```
 
-### Test Types
+Run edge-case tests only:
+```sh
+pytest -m edge
+```
 
-- **Unit Tests:** Validate individual components (MLLP framing, HL7 parsing, transformation, ACK logic).
-- **Integration Tests:** Simulate a real HL7 sender connecting over TCP, sending a message, and receiving an ACK or NACK.
-
-### Example: Integration Test
-
-The integration test (`test_listener_integration.py`) demonstrates a full roundtrip:
-- Starts the HL7 listener on a custom host/port in a background thread.
-- Sends a framed HL7 message over TCP.
-- Verifies that an HL7 ACK is returned.
-- Mocks the API call to isolate listener behavior.
-- Also tests error scenarios such as invalid HL7 and downstream API failures.
-
----
-
-## Test Coverage Highlights
-
-| Area                       | Test(s)                                              | What’s Verified                                                                 |
-|----------------------------|------------------------------------------------------|---------------------------------------------------------------------------------|
-| **MLLP framing/deframing** | `test_frame_and_deframe_roundtrip`<br>`test_extract_multiple_messages` | Correct wrapping/unwrapping and handling of multiple messages per TCP packet     |
-| **ACK correctness**        | `test_ack_swaps_sender_and_receiver`                 | Proper MSH sender/receiver swap and ACK code                                    |
-| **HL7 → JSON transformer** | `test_transform_valid_message`                       | Extraction of control ID, patient ID, and other key fields                      |
-| **Error handling**         | `test_missing_pid_raises`                            | Missing critical segments trigger exceptions or NACKs                            |
-| **Integration**            | `test_listener_returns_ack`                          | End-to-end: sender → listener → API → ACK                                        |
-| **Invalid HL7 structure**  | `test_listener_returns_ae_for_invalid_hl7`           | Malformed HL7 message triggers AE ACK response                                   |
-| **API failure handling**   | `test_listener_returns_ae_when_api_fails`            | Simulated API failure triggers AE ACK response                                   |
-| **API payload validation** | `test_listener_sends_expected_json`                  | Listener sends correct JSON payload to API when receiving a valid HL7 message    |
-| **API retry logic**        | `test_send_to_api_retries_and_succeeds`<br>`test_send_to_api_retries_configured_times` | Ensures `send_to_api` retries on transient network errors and respects the configured retry count |
-| **API contract**           | `test_api_accepts_full_payload`<br>`test_api_rejects_missing_patient_mrn`<br>`test_api_accepts_missing_source` | API endpoint accepts valid payloads, rejects invalid ones, and handles optional fields |
-| **Concurrency**            | `test_concurrent_connections`                        | Listener can handle multiple simultaneous HL7 client connections using threads   |
-| **Idempotency**            | `test_idempotency_guard_new_message`<br>`test_idempotency_guard_expired_message` | Duplicate messages are detected and skipped; expired entries are re-processed    |
-| **Edge Cases**             | `test_large_hl7_message`<br>`test_malformed_hl7_message`<br>`test_multiple_back_to_back_messages` | Handles very large messages, malformed HL7 input, and multiple HL7 messages in a single TCP packet (streaming buffer handling) |
+Testing Highlights:
+- **MLLP framing/deframing**
+- **ACK/NACK correctness**
+- **HL7 → JSON transformation**
+- **Integration tests:** full roundtrip (sender → listener → API → ACK)
+- **Edge cases:** large messages, malformed HL7, multiple messages in a single TCP packet
+- **Concurrency & Idempotency:** multiple simultaneous clients, duplicate message handling
 
 ---
 
-## Production Hardening Roadmap
+## Design Decisions
 
-The current test suite validates correctness and core integration behavior.
-The following extensions would further harden the system for real clinical deployments: 
-- **Partial messages:** Simulate TCP packets with incomplete MLLP frames to test buffering logic.
-- **Multiple back-to-back messages:** Test with 3–5 messages in one buffer to catch iteration bugs.
-- **Invalid HL7 structures:** Handle wrong segment separators, missing MSH, or unknown message types (expect AE NACKs).
-- **API failures:** Simulate API errors (500, timeouts, network issues) and verify retry/NACK logic.
-- **Large messages:** Stress test with large HL7 messages (0.5–1 MB) to check buffer/memory handling.
-- **Edge HL7 fields:** Test PID with multiple identifiers, missing optional fields, or uncommon encodings.
-- **Concurrency / multi-connection:** If threading is added, simulate multiple simultaneous HL7 connections.
+- **Concurrency:** Threaded TCP listener for simultaneous HL7 clients.
+- **Idempotency:** In-memory cache; Redis supported for distributed deployments.
+- **Streaming & Buffering:** Handles partial/multiple messages per TCP packet.
+- **Structured Logging:** Logs timestamps, control_id, message_type, patient_id.
+- **Extensibility:** Modular HL7 → JSON transformer for easy segment extension.
 
 ---
 
-*See `tests/` for implementation details and expand as needed for your use case!*
+## Limitations
+
+- **Idempotency is in-memory by default:** Will not survive process restarts or scale across multiple containers/instances unless Redis or another shared store is configured.
+- **Minimal HL7 segment coverage:** Only core segments (e.g., MSH, PID) are parsed and transformed; additional segments require extension.
+- **No TLS support:** All communication is currently unencrypted.
+- **No Dockerfile or container orchestration provided by default.**
+- **No message queue integration:** (e.g., Kafka, RabbitMQ) for downstream processing.
+- **Minimal HL7 validation or schema enforcement.**
 
 ---
 
-## MLLP Implementation
+## Future Improvements
 
-Messages are framed according to the MLLP standard:
-- Start block: 0x0b
-- End block: 0x1c0d
-All inbound messages are validated for proper MLLP framing before parsing.
-
-**Robustness Notes:**
-- The listener accumulates incoming data in a buffer and only processes messages when a full MLLP frame is present.
-- Handles multiple and partial HL7 messages per TCP packet.
-- If the buffer exceeds 1 MB or repeated framing errors (default: 5) are detected, the buffer is cleared and the connection is closed to prevent memory exhaustion or protocol abuse.
+- **Persistent/Distributed Idempotency:** Use Redis (with SETNX + TTL) or another shared store for production-grade idempotency across restarts and multiple instances.
+- **Full HL7 Segment Support:** Expand parsing and transformation to cover more HL7 segments and fields.
+- **TLS/SSL Support:** Add encrypted transport for both listener and API.
+- **Official Docker Support:** Provide Dockerfile and docker-compose for easy deployment and local development.
+- **Message Queue Integration:** Add support for publishing messages to Kafka, RabbitMQ, or similar.
+- **Advanced Validation:** Implement stricter HL7 validation and schema enforcement.
+- **Enhanced Observability:** Integrate with centralized logging and monitoring solutions (e.g., ELK, Prometheus).
+- **Horizontal Scalability:** Support for running multiple listener/API instances behind a load balancer.
 
 ---
 
@@ -297,37 +293,12 @@ Errors are logged for observability.
 
 ---
 
-## Design Decisions
-
-- Single-threaded listener for simplicity and clarity.
-- Streaming buffer management: supports partial and multiple HL7 messages per TCP packet.
-- Validation disabled (validation_level=0) to allow flexible HL7 parsing.
-- ACK always returned, even on processing failure.
-- Separation of concerns:
-    - Framing logic isolated in mllp.py
-    - ACK construction in ack.py
-    - Transformation logic in transformer.py
-
-## Limitations
-
-- No TLS support
-- Minimal HL7 segment coverage
-- No persistence layer for idempotency (currently in-memory and will not survive process restarts; for production or multi-instance deployments, use a shared store such as Redis with SETNX + TTL)
-- Idempotency cache is process-local (not shared across multiple instances)
-- No Docker support
-- No message queue integration (e.g., Kafka)
-- No advanced HL7 validation
+*See `tests/` for implementation details and expand as needed for your use case!*
 
 ---
 
-## Future Improvements
+## License
 
-- Add TLS support for secure connections
-- Expand HL7 segment and field coverage
-- Implement persistent/shared idempotency store (e.g., Redis) for multi-instance and production safety
-- Add Docker support for easier deployment
-- Integrate with message queues (e.g., Kafka) for scalable downstream processing
-- Add advanced HL7 validation and error reporting
-- Add more robust and structured logging
-- Add more comprehensive unit and integration tests
-- Support for additional API endpoints and richer JSON transformation
+This project is licensed under the MIT License.  
+See the [LICENSE](LICENSE) file for details.
+
