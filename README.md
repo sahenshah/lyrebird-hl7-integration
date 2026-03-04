@@ -41,6 +41,7 @@ curl http://localhost:8000/health
 - HL7 → JSON transformation
 - Downstream API forwarding
 
+
 **Architecture Diagram:**
 ```mermaid
 graph LR
@@ -153,6 +154,7 @@ uvicorn app.api:app --port 8080 --log-config logging_config.json
 ```
 for valid JSON output. 
 
+
 ### 2. Health Check 
 
 To verify the API is running and ready for monitoring, use:
@@ -166,6 +168,7 @@ Expected response:
 {"status":"ok"}
 ```
 
+
 ### 3. Start HL7 Listener
 
 ```sh
@@ -175,6 +178,7 @@ Expected output:
 ```sh
 Listening on 0.0.0.0:2575
 ```
+
 
 ### 4. Send HL7 Messages
 
@@ -238,6 +242,7 @@ pytest -m edge
 ```
 
 Note: when running tests, make sure app and/or listener isnt being run elsewhere as it will interfere with current CI tests
+
 
 Testing Highlights:
 - **MLLP framing/deframing**
