@@ -237,6 +237,8 @@ Run edge-case tests only:
 pytest -m edge
 ```
 
+Note: when running tests, make sure app and/or listener isnt being run elsewhere as it will interfere with current CI tests
+
 Testing Highlights:
 - **MLLP framing/deframing**
 - **ACK/NACK correctness**
@@ -245,7 +247,6 @@ Testing Highlights:
 - **Edge cases:** large messages, malformed HL7, multiple messages in a single TCP packet
 - **Concurrency & Idempotency:** multiple simultaneous clients, duplicate message handling
 
-Note: when running tests, make sure app and/or listener isnt being run elsewhere as it will interfere with current CI tests
 ---
 
 ## Design Decisions
