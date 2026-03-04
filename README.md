@@ -16,6 +16,20 @@ It receives HL7 messages, parses them, transforms them to JSON, forwards them to
 # 2. Build and start all services
 docker compose up --build
 ```
+In a separate terminal:
+```sh
+# 3. Create a virtual environment (if you havent already)
+python3 -m venv venv
+
+# 4. Activate virtual environment
+source venv/bin/activate 
+
+# 5. Install requirements
+pip install -r requirements.txt
+
+# 6. Send an HL7 message
+python3 -m app.sender
+```
 
 ### Option 2: Run Manually (Local Python)
 ```sh
@@ -116,36 +130,12 @@ lyrebird-hl7-integration/
 - Python 3.8+
 - [Docker Compose](https://docs.docker.com/compose/) must be installed.
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) or Docker Engine must be running.
-- [hl7apy](https://pypi.org/project/hl7apy/)
-- [fastapi](https://fastapi.tiangolo.com/)
-- [requests](https://pypi.org/project/requests/)
-- [uvicorn](https://www.uvicorn.org/) (for running FastAPI)
-- [python-dotenv](https://pypi.org/project/python-dotenv/) (for .env support)
-- [httpx](https://www.python-httpx.org/)
-- [python-json-logger](https://pypi.org/project/python-json-logger/)
+- - All Python dependencies are listed in [requirements.txt](requirements.txt) and installed automatically by Docker or with `pip install -r requirements.txt`.
 
 Install dependencies:
 
 ```sh
 pip install -r requirements.txt
-```
-
----
-
-## Environment Configuration
-
-Create an .env file to override default settings:
-
-```env
-HL7_HOST=0.0.0.0
-HL7_PORT=2575
-API_URL=http://localhost:8080/api/v1/messages
-BUFFER_SIZE_LIMIT=1048576
-MAX_FRAMING_ERRORS=5
-MAX_RETRIES=3
-RETRY_BACKOFF_BASE=0.5
-IDEMPOTENCY_CACHE_SIZE=1000
-API_TIMEOUT=5
 ```
 
 ---
@@ -169,12 +159,6 @@ This will:
 
 - The app uses a `.env` file for configuration.
 - Docker Compose automatically loads environment variables from `.env` using the `env_file` directive.
-- Example `.env`:
-  ```
-  API_URL=http://localhost:8000/api/v1/messages
-  HL7_HOST=0.0.0.0
-  HL7_PORT=2575
-  ```
 
 ### 3. Port Mapping
 
@@ -196,7 +180,7 @@ Default: http://localhost:8000
 
 or 
 ```sh
-uvicorn app.api:app --port 8080 --log-config logging_config.json
+uvicorn app.api:app --port 8000 --log-config logging_config.json
 ```
 for valid JSON output. 
 
