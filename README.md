@@ -10,6 +10,14 @@ It receives HL7 messages, parses them, transforms them to JSON, forwards them to
 
 ## TL;DR – Quick Start
 
+### Option 1: Run with Docker (Recommended)
+```sh
+# 1. Ensure Docker Desktop or Docker Engine and Docker Compose are installed and running
+# 2. Build and start all services
+docker compose up --build
+```
+
+### Option 2: Run Manually (Local Python)
 ```sh
 # 1. Install dependencies
 pip install -r requirements.txt
@@ -66,6 +74,7 @@ graph LR
 
 ## Features
 
+- **Dockerized Deployment:** Easily run the app and all dependencies in containers.
 - **HL7 Listener:** TCP/MLLP server, supports multiple clients via threading. 
 - **HL7 Parsing:** Uses [hl7apy](https://github.com/crs4/hl7apy) for  HL7 v2.x parsing.
 - **MLLP Framing:** Handles partial/multiple messages per TCP packet. 
@@ -105,6 +114,8 @@ lyrebird-hl7-integration/
 ## Requirements
 
 - Python 3.8+
+- [Docker Compose](https://docs.docker.com/compose/) must be installed.
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) or Docker Engine must be running.
 - [hl7apy](https://pypi.org/project/hl7apy/)
 - [fastapi](https://fastapi.tiangolo.com/)
 - [requests](https://pypi.org/project/requests/)
@@ -125,7 +136,7 @@ pip install -r requirements.txt
 
 Create an .env file to override default settings:
 
-```
+```env
 HL7_HOST=0.0.0.0
 HL7_PORT=2575
 API_URL=http://localhost:8080/api/v1/messages
@@ -140,6 +151,41 @@ API_TIMEOUT=5
 ---
 
 ## Usage
+
+### OPTION A: Running with Docker
+You can run the entire app stack using Docker and Docker Compose.
+
+### 1. Build and Start the Services
+
+```sh
+docker-compose up --build
+```
+
+This will:
+- Build the backend image.
+- Start the backend service, exposing the configured port (default: 8000).
+
+### 2. Environment Variables
+
+- The app uses a `.env` file for configuration.
+- Docker Compose automatically loads environment variables from `.env` using the `env_file` directive.
+- Example `.env`:
+  ```
+  API_URL=http://localhost:8000/api/v1/messages
+  HL7_HOST=0.0.0.0
+  HL7_PORT=2575
+  ```
+
+### 3. Port Mapping
+
+- By default, the backend runs on port 8000 inside the container and is mapped to port 8000 on your host.
+- You can change the external port in `docker-compose.yml` if needed:
+  ```yaml
+  ports:
+    - "8000:8000"
+  ```
+
+### OPTION B: Running Manually
 
 ### 1. Start the FastAPI Backend
 
@@ -200,7 +246,7 @@ MSA|AA|123456
 
 File `examples/sample_adt_a01.hl7`:
 
-```
+```hl7
 MSH|^~\&|SendingApp|SendingFacility|ReceivingApp|ReceivingFacility|202603021200||ADT^A01|123456|P|2.3
 PID|1||MRN12345||Doe^John||19900101|M|||123 Main St^^City^ST^12345||555-1234
 ```
@@ -269,7 +315,6 @@ Testing Highlights:
 - **Idempotency is in-memory by default:** Will not survive process restarts or scale across multiple containers/instances unless Redis or another shared store is configured.
 - **Minimal HL7 segment coverage:** Only core segments (e.g., MSH, PID) are parsed and transformed; additional segments require extension.
 - **No TLS support:** All communication is currently unencrypted.
-- **No Dockerfile or container orchestration provided by default.**
 - **No message queue integration:** (e.g., Kafka, RabbitMQ) for downstream processing.
 - **Minimal HL7 validation or schema enforcement.**
 
@@ -280,7 +325,6 @@ Testing Highlights:
 - **Persistent/Distributed Idempotency:** Use Redis (with SETNX + TTL) or another shared store for production-grade idempotency across restarts and multiple instances.
 - **Full HL7 Segment Support:** Expand parsing and transformation to cover more HL7 segments and fields.
 - **TLS/SSL Support:** Add encrypted transport for both listener and API.
-- **Official Docker Support:** Provide Dockerfile and docker-compose for easy deployment and local development.
 - **Message Queue Integration:** Add support for publishing messages to Kafka, RabbitMQ, or similar.
 - **Advanced Validation:** Implement stricter HL7 validation and schema enforcement.
 - **Enhanced Observability:** Integrate with centralized logging and monitoring solutions (e.g., ELK, Prometheus).
