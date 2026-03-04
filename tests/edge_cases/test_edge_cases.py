@@ -2,9 +2,7 @@ import socket
 import time
 import pytest
 from app.core.mllp import frame_message, deframe_message, extract_messages_from_buffer
-
-HL7_HOST = "127.0.0.1"
-HL7_PORT = 2575
+from app.core.config import HL7_HOST, HL7_PORT
 
 def send_hl7_message(message: str):
     """Helper to send a single HL7 message to the listener and receive ACK."""

@@ -44,11 +44,11 @@ curl http://localhost:8000/health
 **Architecture Diagram:**
 ```mermaid
 graph LR
-  A[HL7 Sender] --> B[MLLP TCP Listener]
-  B --> C[HL7 Parser (hl7apy)]
-  C --> D[HL7 → JSON Transformer]
-  D --> E[FastAPI Backend]
-  E --> B[HL7 ACK returned]
+  A[HL7 Sender] -> B[MLLP TCP Listener]
+  B -> C[HL7 Parser (hl7apy)]
+  C -> D[HL7 → JSON Transformer]
+  D -> E[FastAPI Backend]
+  E -> B[HL7 ACK returned]
 ```
 
 
@@ -71,7 +71,6 @@ graph LR
 - **Robust Buffering:** Configurable buffer size and framing error limits. 
 - **JSON Transformation:** Modular HL7 → JSON transformer.
 - **Buffer Size & Framing Error Limits:** Enforces a buffer size limit (default: 1 MB) and limits repeated framing errors (default: 5) to prevent memory exhaustion or protocol abuse.
-- **JSON transformation layer:** Modular HL7 → JSON transformer.
 - **FastAPI Backend:** Example REST API endpoint for processed messages.
 - **Idempotency Guard:** Thread-safe in-memory cache to prevent duplicate processing. 
 - **Structured Logging:** Logs key metadata (timestamps, message_type, control_id, patient_id).

@@ -5,8 +5,14 @@ import requests
 import os
 import signal
 import socket
+from urllib.parse import urlparse
+from app.core.config import API_URL
 
-API_HOST = "http://127.0.0.1:8080"
+parsed_url = urlparse(API_URL)
+api_scheme = parsed_url.scheme
+api_host = parsed_url.hostname or "127.0.0.1"
+api_port = parsed_url.port or (443 if api_scheme == "https" else 80)
+api_base = f"{api_scheme}://{api_host}:{api_port}"
 
 @pytest.fixture(scope="session", autouse=True)
 def start_api():
@@ -14,7 +20,8 @@ def start_api():
     uvicorn_cmd = [
         "uvicorn",
         "app.api:app",
-        "--port", "8080",
+        "--host", api_host,
+        "--port", str(api_port),
         "--log-config", "logging_config.json",
     ]
 
@@ -30,7 +37,7 @@ def start_api():
     start = time.time()
     while True:
         try:
-            requests.get(f"{API_HOST}/docs")
+            requests.get(f"{api_base}/docs")
             break
         except requests.ConnectionError:
             if time.time() - start > timeout:
@@ -49,7 +56,7 @@ def wait_for_port(host, port, timeout=10):
     start = time.time()
     while time.time() - start < timeout:
         try:
-            with socket.create_connection((host, port), timeout=1):
+            with socket.create_connection((host, int(port)), timeout=1):
                 return True
         except OSError:
             time.sleep(0.2)
