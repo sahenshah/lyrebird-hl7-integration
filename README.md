@@ -45,10 +45,10 @@ curl http://localhost:8000/health
 ```mermaid
 graph LR
   A[HL7 Sender] -> B[MLLP TCP Listener]
-  B -> C[HL7 Parser (hl7apy)]
-  C -> D[HL7 → JSON Transformer]
-  D -> E[FastAPI Backend]
-  E -> B[HL7 ACK returned]
+  B to C[HL7 Parser (hl7apy)]
+  C to D[HL7 → JSON Transformer]
+  D to E[FastAPI Backend]
+  E to B[HL7 ACK returned]
 ```
 
 
@@ -245,6 +245,7 @@ Testing Highlights:
 - **Edge cases:** large messages, malformed HL7, multiple messages in a single TCP packet
 - **Concurrency & Idempotency:** multiple simultaneous clients, duplicate message handling
 
+Note: when running tests, make sure app and/or listener isnt being run elsewhere as it will interfere with current CI tests
 ---
 
 ## Design Decisions
