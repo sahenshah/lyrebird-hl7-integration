@@ -6,15 +6,7 @@ services:
     env_file:
       - .env
     ports:
-      - "8000:8000"  # keep the same port inside and outside docker container 
-    environment:
-      - API_URL=http://backend:8000/api/v1/messages
-      - BUFFER_SIZE_LIMIT=1048576
-      - MAX_FRAMING_ERRORS=5
-      - MAX_RETRIES=3
-      - RETRY_BACKOFF_BASE=0.5
-      - IDEMPOTENCY_CACHE_SIZE=1000
-      - API_TIMEOUT=5
+      - "8000:8000"
     command: uvicorn app.api:app --host 0.0.0.0 --port 8000
     restart: unless-stopped
 
@@ -23,17 +15,9 @@ services:
     container_name: hl7-listener
     depends_on:
       - backend
+    env_file:
+      - .env
     ports:
       - "2575:2575"
-    environment:
-      - HL7_HOST=0.0.0.0
-      - HL7_PORT=2575
-      - API_URL=http://backend:8000/api/v1/messages
-      - BUFFER_SIZE_LIMIT=1048576
-      - MAX_FRAMING_ERRORS=5
-      - MAX_RETRIES=3
-      - RETRY_BACKOFF_BASE=0.5
-      - IDEMPOTENCY_CACHE_SIZE=1000
-      - API_TIMEOUT=5
     command: python3 -m app.listener
     restart: unless-stopped
