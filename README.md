@@ -44,7 +44,7 @@ curl http://localhost:8000/health
 **Architecture Diagram:**
 ```mermaid
 graph LR
-  A[HL7 Sender] -> B[MLLP TCP Listener]
+  A[HL7 Sender] to B[MLLP TCP Listener]
   B to C[HL7 Parser (hl7apy)]
   C to D[HL7 → JSON Transformer]
   D to E[FastAPI Backend]
