@@ -77,7 +77,10 @@ def wait_for_port(host, port, timeout=10):
 @pytest.fixture(autouse=True)
 def start_listener():
     """Start a fresh listener in background before each test, and stop after."""
-    proc = subprocess.Popen(["python3", "-m", "app.listener"])
+    try:
+        proc = subprocess.Popen(["python3", "-m", "app.listener"])
+    except FileNotFoundError:
+        proc = subprocess.Popen(["python", "-m", "app.listener"])
     wait_for_port("127.0.0.1", 2575, timeout=10)
     yield
     proc.terminate()
