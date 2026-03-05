@@ -24,25 +24,39 @@ python3 -m venv venv
 # 4. Activate virtual environment
 source venv/bin/activate 
 
-# 5. Install requirements
+# 5. Install requirements (in venv)
 pip install -r requirements.txt
 
 # 6. Send an HL7 message
 python3 -m app.sender
 ```
 
+Expected sender output:
+```sh
+Received ACK message:
+MSH|^~\&|ReceivingApp|ReceivingFacility|SendingApp|SendingFacility|20260304213451||ACK|edf37cf0-f8e8-44ff-a416-bb07f517f315|P|2.3
+MSA|AA|123456
+```
 ### Option 2: Run Manually (Local Python)
 ```sh
-# 1. Install dependencies
+# 1. Create a virtual environment (if you havent already)
+python3 -m venv venv
+
+# 2. Activate virtual environment
+source venv/bin/activate 
+
+# 3. Install dependencies (in venv)
 pip install -r requirements.txt
 
 # 2. Start FastAPI backend
 uvicorn app.api:app --reload
 
-# 3. Start HL7 listener
+# 3. Start HL7 listener (in new terminal)
+source venv/bin/activate 
 python3 -m app.listener
 
-# 4. Send an HL7 message
+# 4. Send an HL7 message (in new terminal)
+source venv/bin/activate 
 python3 -m app.sender
 ```
 
@@ -50,6 +64,13 @@ Check API health:
 ```sh
 curl http://localhost:8000/health
 # Expected: {"status":"ok"}
+```
+
+Expected sender output:
+```sh
+Received ACK message:
+MSH|^~\&|ReceivingApp|ReceivingFacility|SendingApp|SendingFacility|20260304213451||ACK|edf37cf0-f8e8-44ff-a416-bb07f517f315|P|2.3
+MSA|AA|123456
 ```
 
 ---
@@ -168,11 +189,44 @@ This will:
   ports:
     - "8000:8000"
   ```
+### 4. Send HL7 Messages
+
+Activate virtual environment
+```sh
+source venv/bin/activate 
+```
+
+```sh
+python3 -m app.sender
+```
+
+Expected sender output:
+```sh
+Received ACK message:
+MSH|^~\&|ReceivingApp|ReceivingFacility|SendingApp|SendingFacility|20260304213451||ACK|edf37cf0-f8e8-44ff-a416-bb07f517f315|P|2.3
+MSA|AA|123456
+```
 
 ### OPTION B: Running Manually
 
 ### 1. Start the FastAPI Backend
 
+Create a virtual environment (if you havent already)
+```sh
+python3 -m venv venv
+```
+
+Activate virtual environment
+```sh
+source venv/bin/activate 
+```
+
+Install app dependencies in venv:
+```sh
+pip install -r requirements.txt  
+```
+
+Start the FastAPI Backend
 ```sh
 uvicorn app.api:app --reload
 ```
@@ -192,6 +246,7 @@ To verify the API is running and ready for monitoring, use:
 ```sh
 curl http://localhost:8000/health
 ```
+from a separate terminal. 
 
 Expected response:
 ```json
@@ -201,9 +256,15 @@ Expected response:
 
 ### 3. Start HL7 Listener
 
+Activate virtual environment
+```sh
+source venv/bin/activate 
+```
+
 ```sh
 python3 -m app.listener
 ```
+
 Expected output:
 ```sh
 Listening on 0.0.0.0:2575
@@ -212,15 +273,19 @@ Listening on 0.0.0.0:2575
 
 ### 4. Send HL7 Messages
 
+Activate virtual environment
+```sh
+source venv/bin/activate 
+```
+
 ```sh
 python3 -m app.sender
 ```
 
 Expected sender output:
-
 ```sh
 Received ACK message:
-MSH|^~\&|RecvApp|RecvFac|SendingApp|SendingFac|202603021200||ACK|123456|P|2.3
+MSH|^~\&|ReceivingApp|ReceivingFacility|SendingApp|SendingFacility|20260304213451||ACK|edf37cf0-f8e8-44ff-a416-bb07f517f315|P|2.3
 MSA|AA|123456
 ```
 

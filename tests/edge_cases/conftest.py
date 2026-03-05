@@ -5,6 +5,7 @@ import requests
 import os
 import signal
 import socket
+import sys
 from urllib.parse import urlparse
 from app.core.config import API_URL
 
@@ -25,12 +26,20 @@ def start_api():
         "--log-config", "logging_config.json",
     ]
 
-    proc = subprocess.Popen(
-        uvicorn_cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        preexec_fn=os.setsid,  # allows killing the process group
-    )
+    if sys.platform == "win32":
+        proc = subprocess.Popen(
+            uvicorn_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+        )
+    else:
+        proc = subprocess.Popen(
+            uvicorn_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            preexec_fn=os.setsid,
+        )
 
     # Wait until API is ready
     timeout = 10  # seconds
@@ -48,7 +57,10 @@ def start_api():
     yield  # run the tests
 
     # Teardown: kill the uvicorn subprocess
-    os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+    if sys.platform == "win32":
+        proc.send_signal(signal.CTRL_BREAK_EVENT)
+    else:
+        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
     proc.wait()
 
 def wait_for_port(host, port, timeout=10):
