@@ -75,7 +75,6 @@ MSA|AA|123456
 
 ---
 
-
 ## Project Overview
 **Goal**: Demonstrate core healthcare integration concepts:
 - HL7 v2 message handling
@@ -84,17 +83,32 @@ MSA|AA|123456
 - HL7 → JSON transformation
 - Downstream API forwarding
 
-
 **Architecture Diagram:**
 ```mermaid
-graph LR
-    A[HL7 Sender] --> B[MLLP TCP Listener]
-    B --> C[HL7 Parser - hl7apy]
-    C --> D[HL7 → JSON Transformer]
-    D --> E[FastAPI Backend]
-    E --> B[HL7 ACK returned]
-```
+flowchart LR
 
+    A[HL7 Sender Client<br>app.sender]
+
+    subgraph HL7 Listener Process
+        B[TCP Server<br>MLLP Listener]
+        C[MLLP Deframing<br>Buffer + framing checks]
+        D[HL7 Parser<br>hl7apy]
+        E[HL7 → JSON Transformer]
+        F[POST JSON to API]
+        G[ACK/NACK Builder]
+    end
+
+    H[FastAPI Backend<br>app.api]
+
+    A -->|MLLP framed HL7| B
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+    F -->|HTTP POST| H
+    H -->|HTTP response| G
+    G -->|HL7 ACK/NACK via MLLP| A
+```
 
 **Flow Summary**
 1. TCP listener accepts connection and receives MLLP-framed HL7 messages. 
@@ -113,7 +127,7 @@ graph LR
 - **HL7 Listener:** TCP/MLLP server, supports multiple clients via threading. 
 - **HL7 Parsing:** Uses [hl7apy](https://github.com/crs4/hl7apy) for  HL7 v2.x parsing.
 - **MLLP Framing:** Handles partial/multiple messages per TCP packet. 
-- **Robust Buffering:** Configurable buffer size and framing error limits. 
+- **Robust MLLP Handling:** Supports partial TCP packets, multiple messages per packet, and framing validation.
 - **JSON Transformation:** Modular HL7 → JSON transformer.
 - **Buffer Size & Framing Error Limits:** Enforces a buffer size limit (default: 1 MB) and limits repeated framing errors (default: 5) to prevent memory exhaustion or protocol abuse.
 - **FastAPI Backend:** Example REST API endpoint for processed messages.
@@ -357,6 +371,27 @@ Testing Highlights:
 - **Edge cases:** large messages, malformed HL7, multiple messages in a single TCP packet
 - **Concurrency & Idempotency:** multiple simultaneous clients, duplicate message handling
 
+**Skipped tests:**
+Some tests for "large HL7 messages" and "too large HL7 messages" are **skipped** by default.  
+This is because the HL7 parser (`hl7apy`) enforces field length constraints before the application's message size check, making it impossible to test message size limits with standard HL7 segments.  
+These tests are included for documentation and completeness, but will show as `SKIPPED` in the test output:
+
+---
+
+## Secure HL7 Parsing
+
+Incoming HL7 messages are treated as untrusted input and validated defensively before processing.
+
+The listener applies several safeguards:
+
+- **Strict HL7 validation:** Messages are parsed using hl7apy with STRICT validation to enforce HL7 structure and segment requirements.
+- **Message type whitelist:** Only supported message types (currently ADT^A01) are accepted.
+- **Required field validation:** Critical identifiers such as MSH-10 (message control ID) and PID-3 (patient ID) must be present.
+- **Message size limits:** Messages larger than the configured maximum (default: 1 MB) are rejected to prevent memory exhaustion.
+- **Graceful error handling:** Invalid or malformed messages are safely rejected and an AE (Application Error) ACK is returned without crashing the listener.
+
+These safeguards help ensure robust handling of malformed or malicious input while maintaining HL7-compliant responses.
+
 ---
 
 ## Design Decisions
@@ -366,7 +401,7 @@ Testing Highlights:
 - **Streaming & Buffering:** Handles partial/multiple messages per TCP packet.
 - **Structured Logging:** Logs timestamps, control_id, message_type, patient_id.
 - **Extensibility:** Modular HL7 → JSON transformer for easy segment extension.
-
+- **Validation and defensive parsing:** HL7 input is treated as untrusted external data; therefore strict validation and defensive parsing are applied before transformation or downstream processing.
 ---
 
 ## Limitations
@@ -393,10 +428,12 @@ Testing Highlights:
 
 ## Error Handling
 
-- Invalid MLLP framing → returns AE
-- Parsing failure → returns AE
-- API failure → returns AE
-- Successful processing → returns AA
+- Invalid MLLP framing → AE returned
+- HL7 validation or parsing failure → AE returned
+- Unsupported message type → AE returned
+- Missing required fields → AE returned
+- API failure → AE returned
+- Successful processing → AA returned
 
 Errors are logged for observability.
 

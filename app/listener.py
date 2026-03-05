@@ -14,7 +14,8 @@ from app.core.config import (
     MAX_RETRIES, 
     RETRY_BACKOFF_BASE, 
     MAX_FRAMING_ERRORS, 
-    MAX_BUFFER_SIZE
+    MAX_BUFFER_SIZE,
+    MAX_MESSAGE_SIZE 
 )
 from app.core.mllp import deframe_message, frame_message, extract_messages_from_buffer
 from app.core.ack import build_ack
@@ -99,11 +100,30 @@ def process_hl7_message(hl7_string, conn, addr):
     try:
         # Normalize segment separators before parsing
         hl7_string = normalize_hl7_segments(hl7_string)
-        parsed = parse_message(hl7_string, validation_level=VALIDATION_LEVEL.TOLERANT)
+        
+        # --- Check Message Size ---
+        if len(hl7_string) > MAX_MESSAGE_SIZE:
+            raise ValueError("HL7 message too large")
+            
+        parsed = parse_message(hl7_string, validation_level=VALIDATION_LEVEL.STRICT)
         message_control_id = parsed.MSH.MSH_10.to_er7() if hasattr(parsed.MSH, "MSH_10") else "unknown"
         patient_id = parsed.PID.PID_3.to_er7() if hasattr(parsed, "PID") and hasattr(parsed.PID, "PID_3") else "unknown"
         message_type = parsed.MSH.MSH_9.to_er7() if hasattr(parsed.MSH, "MSH_9") else "unknown"
         log = get_logger_with_context(message_control_id=message_control_id, patient_id=patient_id, message_type=message_type, source_addr=source_addr)
+
+        # --- Whitelist message types ---
+        allowed_types = {"ADT^A01"}
+        if message_type not in allowed_types:
+            raise ValueError(f"Unsupported message type: {message_type}")
+
+        # --- Validate required fields ---
+        control_id = parsed.MSH.MSH_10.value if hasattr(parsed.MSH, "MSH_10") else None
+        if not control_id:
+            raise ValueError("Missing message control ID")
+
+        mrn = parsed.PID.PID_3.value if hasattr(parsed, "PID") and hasattr(parsed.PID, "PID_3") else None
+        if not mrn:
+            raise ValueError("Missing patient ID")
 
         log.info(f"Processing message from {addr}")
 
@@ -120,7 +140,6 @@ def process_hl7_message(hl7_string, conn, addr):
             send_to_api(hl7_json)
             guard.mark_processed(message_control_id)
             log.info(f"[{message_control_id}] Message successfully processed, returning ACK")
-            # Structured log with message metadata
             logging.info(
                 "Message successfully processed",
                 extra={
