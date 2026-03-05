@@ -326,12 +326,22 @@ Example transformed payload:
 
 All tests are located in the `tests/` directory. 
 
-Run the full suite:
+1. Create a virtual environment (if you havent already)
+```sh
+python3 -m venv venv
+```
+
+2. Activate virtual environment
+```sh
+source venv/bin/activate 
+```
+
+3. Run the full suite:
 ```sh
 pytest -v
 ```
 
-Run edge-case tests only:
+4. Run edge-case tests only:
 ```sh
 pytest -m edge
 ```
