@@ -16,7 +16,7 @@ It receives HL7 messages, parses them, transforms them to JSON, forwards them to
 openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -config san.cnf -extensions v3_req
 
 # 1. Ensure Docker Desktop or Docker Engine and Docker Compose are installed and running
-# 2. Build and start all services
+# 2. Starts both the HL7 Listener (on port 2575) and the FastAPI Backend (on port 8000) in separate containers. 
 docker compose up --build
 ```
 In a separate terminal:
@@ -29,35 +29,8 @@ source venv/bin/activate
 
 # 5. Install requirements (in venv)
 pip install -r requirements.txt
-
-# 6. Send HL7 message (in new terminal)
-# Send single message
-python -m app.sender --file examples/sample_adt_a01.hl7
-
-# Publish every 60 seconds, 10 times 
-python -m app.sender --schedule 60 --count 10
-
-# Publish indefinitely (Ctrl+C to stop)
-python -m app.sender --schedule 30
-
-# Publish with custom retry configuration
-python -m app.sender \
-  --file examples/sample_adt_a01.hl7 \
-  --host localhost \
-  --port 2575 \
-  --retries 5 \
-  --delay 2.0 \
-  --timeout 15
-
 ```
 
-Expected sender output:
-```sh
-Sending message from examples/sample_adt_a01.hl7...
-Received ACK message:
-MSH|^~\&|ReceivingApp|ReceivingFacility|SendingApp|SendingFacility|20260306195323||ACK|ee354348-233a-4a04-8dee-dd6a7a
-MSA|AA|123456
-```
 
 ### Option 2: Run Manually (Local Python)
 ```sh
@@ -95,8 +68,11 @@ uvicorn app.api:app --reload
 # 5. Start HL7 listener (in new terminal)
 source venv/bin/activate 
 python3 -m app.listener
+```
 
-# 6. Send HL7 message (in new terminal)
+## Send HL7 message(s) 
+```sh
+# In new terminal
 source venv/bin/activate 
 
 # Send single message
@@ -439,9 +415,39 @@ Example transformed payload:
 
 The FastAPI backend can run over HTTPS using a self-signed TLS certificate.
 
+Why `san.cnf` is needed:
+Modern TLS clients validate the Subject Alternative Name (SAN), not just the certificate Common Name (CN).
+If `localhost` and `127.0.0.1` are missing from SAN, HTTPS verification will fail with hostname mismatch errors.
+
+Create `san.cnf` in the project root with the following content:
+
+```ini
+[req]
+default_bits = 2048
+prompt = no
+default_md = sha256
+x509_extensions = v3_req
+distinguished_name = dn
+
+[dn]
+CN = localhost
+
+[v3_req]
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = localhost
+IP.1 = 127.0.0.1
+```
+
 Generate a local certificate:
 ```sh
 openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -config san.cnf -extensions v3_req
+```
+
+Verify SAN values are present:
+```sh
+openssl x509 -in cert.pem -noout -text | grep -nE "Subject Alternative Name|DNS:|IP Address:"
 ```
 
 
@@ -554,7 +560,7 @@ In production deployments additional protections would include:
 - **Self-signed TLS certificates are used for local HTTPS support:** In production environments, certificates issued by a trusted certificate authority should be used. 
 - **No message queue integration:** (e.g., Kafka, RabbitMQ) for downstream processing.
 - **Minimal HL7 validation or schema enforcement.**
-
+- **Potential Single Point of Failure:** The listener is a critical piece of infrastructure that both receives HL7 messages and forwards them to the API. If the listener crashes, messages are lost.
 ---
 
 ## Future Improvements
