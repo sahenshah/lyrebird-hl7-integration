@@ -73,7 +73,11 @@ def send_to_api(payload):
         requests.RequestException: If all retry attempts fail.
     """
     def call_api():
-        response = requests.post(API_URL, json=payload, timeout=API_TIMEOUT)
+        response = requests.post(
+                       "https://localhost:8000/api/v1/messages",
+                       json=payload,
+                       verify=False # verify=False used for local self-signed certificate
+                   )
         response.raise_for_status()
         return response
 

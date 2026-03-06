@@ -106,9 +106,9 @@ def test_listener_sends_expected_json(monkeypatch):
     """
     captured_payload = {}
 
-    def mock_post(url, json, timeout):
+    def mock_post(*args, **kwargs):
         captured_payload.clear()
-        captured_payload.update(json)
+        captured_payload.update(kwargs.get("json", {}))
         class Response:
             status_code = 200
             def raise_for_status(self): pass
@@ -151,7 +151,7 @@ def test_listener_skips_duplicate(monkeypatch):
 
     call_count = 0
 
-    def mock_post(url, json, timeout):
+    def mock_post(*args, **kwargs):
         nonlocal call_count
         call_count += 1
 
@@ -181,7 +181,7 @@ def test_listener_skips_duplicate(monkeypatch):
 def test_failed_api_does_not_mark_processed(monkeypatch):
     call_count = 0
 
-    def mock_post(url, json, timeout):
+    def mock_post(*args, **kwargs):
         nonlocal call_count
         call_count += 1
         raise Exception("API failure")
@@ -203,7 +203,7 @@ def test_multiple_clients_concurrently(monkeypatch):
 
     call_count = 0
 
-    def mock_post(url, json, timeout):
+    def mock_post(*args, **kwargs):
         nonlocal call_count
         call_count += 1
 

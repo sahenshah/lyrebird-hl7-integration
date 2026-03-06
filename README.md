@@ -48,7 +48,22 @@ source venv/bin/activate
 # 3. Install dependencies (in venv)
 pip install -r requirements.txt
 
-# 2. Start FastAPI backend
+# 2. (Recommended) Run API over HTTPS using self-signed certificate with valid JSON output. 
+uvicorn app.api:app \
+  --host localhost \
+  --port 8000 \
+  --ssl-keyfile key.pem \
+  --ssl-certfile cert.pem \
+  --log-config logging_config.json
+
+# 2. (Optional) The API can optionally run over HTTPS using a self-signed certificate.
+uvicorn app.api:app \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --ssl-keyfile key.pem \
+  --ssl-certfile cert.pem
+
+# 2. (Quickstart) Start FastAPI backend
 uvicorn app.api:app --reload
 
 # 3. Start HL7 listener (in new terminal)
@@ -87,34 +102,24 @@ MSA|AA|123456
 ```mermaid
 flowchart LR
 
-    A[HL7 Sender Client<br>app.sender]
+    A[External HL7 System] -->|HL7 v2 / MLLP| B[HL7 Listener]
 
-    subgraph HL7 Listener Process
-        B[TCP Server<br>MLLP Listener]
-        C[MLLP Deframing<br>Buffer + framing checks]
-        D[HL7 Parser<br>hl7apy]
-        E[HL7 → JSON Transformer]
-        F[POST JSON to API]
-        G[ACK/NACK Builder]
+    subgraph Lyrebird HL7 Integration
+        B --> C[Parse HL7 (hl7apy)]
+        C --> D[Transform HL7 → JSON]
+        D --> E[FastAPI Backend]
     end
 
-    H[FastAPI Backend<br>app.api]
+    E -->|HTTPS JSON POST| F[Downstream API]
 
-    A -->|MLLP framed HL7| B
-    B --> C
-    C --> D
-    D --> E
-    E --> F
-    F -->|HTTP POST| H
-    H -->|HTTP response| G
-    G -->|HL7 ACK/NACK via MLLP| A
+    B -->|HL7 ACK / NACK| A
 ```
 
 **Flow Summary**
 1. TCP listener accepts connection and receives MLLP-framed HL7 messages. 
 2. Messages are deframed and parsed with hl7apy. 
 3. Parsed messages are transformed into JSON. 
-4. JSON payload is POSTed to FastAPI REST API. 
+4. JSON payload is POSTed to the FastAPI REST API over HTTPS. 
 5. Listener returns:
     - AA → Application Accept (success)
     - AE → Application Error (failure)
@@ -134,7 +139,7 @@ flowchart LR
 - **Idempotency Guard:** Thread-safe in-memory cache to prevent duplicate processing. 
 - **Structured Logging:** Logs key metadata (timestamps, message_type, control_id, patient_id).
 - **Error Handling:** Returns appropriate HL7 ACK/NACK responses.
-
+- **HTTPS Support:** FastAPI backend can run with TLS using a self-signed certificate for local development.
 ---
 
 ## Project Structure
@@ -246,11 +251,24 @@ uvicorn app.api:app --reload
 ```
 Default: http://localhost:8000
 
-or 
+or Run API over HTTPS using a self-signed certificate.
 ```sh
-uvicorn app.api:app --port 8000 --log-config logging_config.json
+uvicorn app.api:app \
+  --host localhost \
+  --port 8000 \
+  --ssl-keyfile key.pem \
+  --ssl-certfile cert.pem
 ```
-for valid JSON output. 
+
+or for valid JSON output. 
+```sh
+uvicorn app.api:app \
+  --host localhost \
+  --port 8000 \
+  --ssl-keyfile key.pem \
+  --ssl-certfile cert.pem \
+  --log-config logging_config.json
+```
 
 
 ### 2. Health Check 
@@ -336,6 +354,22 @@ Example transformed payload:
 
 ---
 
+## HTTPS Support
+
+The FastAPI backend can run over HTTPS using a self-signed TLS certificate.
+
+Generate a local certificate:
+```sh
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+```
+
+
+Because the certificate is self-signed, certificate verification is disabled in the listener (verify=False) for local development.
+
+In production environments, a trusted certificate authority would be used instead.
+
+---
+
 ## Testing
 
 All tests are located in the `tests/` directory. 
@@ -402,13 +436,15 @@ These safeguards help ensure robust handling of malformed or malicious input whi
 - **Structured Logging:** Logs timestamps, control_id, message_type, patient_id.
 - **Extensibility:** Modular HL7 → JSON transformer for easy segment extension.
 - **Validation and defensive parsing:** HL7 input is treated as untrusted external data; therefore strict validation and defensive parsing are applied before transformation or downstream processing.
+- **Transport Security:** The REST API supports HTTPS using TLS certificates. For local development a self-signed certificate is used, while production deployments should use trusted certificates.
+
 ---
 
 ## Limitations
 
 - **Idempotency is in-memory by default:** Will not survive process restarts or scale across multiple containers/instances unless Redis or another shared store is configured.
 - **Minimal HL7 segment coverage:** Only core segments (e.g., MSH, PID) are parsed and transformed; additional segments require extension.
-- **No TLS support:** All communication is currently unencrypted.
+- **Self-signed TLS certificates are used for local HTTPS support:** In production environments, certificates issued by a trusted certificate authority should be used. 
 - **No message queue integration:** (e.g., Kafka, RabbitMQ) for downstream processing.
 - **Minimal HL7 validation or schema enforcement.**
 
