@@ -111,7 +111,7 @@ flowchart LR
     A[External HL7 System] -->|HL7 v2 / MLLP| B[HL7 Listener]
 
     subgraph Lyrebird HL7 Integration
-        B --> C[Parse HL7 (hl7apy)]
+        B --> C[Parse HL7]
         C --> D[Transform HL7 → JSON]
         D --> E[FastAPI Backend]
     end
