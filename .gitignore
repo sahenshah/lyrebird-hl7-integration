@@ -36,3 +36,11 @@ htmlcov/
 
 # Environment files
 .env
+
+# https
+cert.pem
+key.pem
+# TLS secrets
+cert.pem
+key.pem
+*.pem
