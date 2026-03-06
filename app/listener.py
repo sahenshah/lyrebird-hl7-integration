@@ -150,7 +150,6 @@ def process_hl7_message(hl7_string, conn, addr):
         if guard.is_processed(message_control_id):
             log.info(f"[{message_control_id}] Duplicate message detected — skipping API call")
             ack = build_ack(parsed, ack_code="AA")
-            conn.sendall(frame_message(ack))
             return
 
         try:

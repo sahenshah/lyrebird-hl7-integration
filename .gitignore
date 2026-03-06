@@ -18,6 +18,7 @@ Thumbs.db
 
 # Logs
 *.log
+publisher_audit.json
 
 # Test and coverage outputs
 htmlcov/

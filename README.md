@@ -12,7 +12,7 @@ It receives HL7 messages, parses them, transforms them to JSON, forwards them to
 
 ### Option 1: Run with Docker (Recommended)
 ```sh
-# 0. Generate new certification and key for https (if you havent already)
+# 0. Generate new certificate and key for https (if you havent already)
 openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -config san.cnf -extensions v3_req
 
 # 1. Ensure Docker Desktop or Docker Engine and Docker Compose are installed and running
@@ -30,19 +30,38 @@ source venv/bin/activate
 # 5. Install requirements (in venv)
 pip install -r requirements.txt
 
-# 6. Send an HL7 message
-python3 -m app.sender
+# 6. Send HL7 message (in new terminal)
+# Send single message
+python -m app.sender --file examples/sample_adt_a01.hl7
+
+# Publish every 60 seconds, 10 times 
+python -m app.sender --schedule 60 --count 10
+
+# Publish indefinitely (Ctrl+C to stop)
+python -m app.sender --schedule 30
+
+# Publish with custom retry configuration
+python -m app.sender \
+  --file examples/sample_adt_a01.hl7 \
+  --host localhost \
+  --port 2575 \
+  --retries 5 \
+  --delay 2.0 \
+  --timeout 15
+
 ```
 
 Expected sender output:
 ```sh
+Sending message from examples/sample_adt_a01.hl7...
 Received ACK message:
-MSH|^~\&|ReceivingApp|ReceivingFacility|SendingApp|SendingFacility|20260304213451||ACK|edf37cf0-f8e8-44ff-a416-bb07f517f315|P|2.3
+MSH|^~\&|ReceivingApp|ReceivingFacility|SendingApp|SendingFacility|20260306195323||ACK|ee354348-233a-4a04-8dee-dd6a7a
 MSA|AA|123456
 ```
+
 ### Option 2: Run Manually (Local Python)
 ```sh
-# 0. Generate new certification and key for https (if you havent already)
+# 0. Generate new certificate and key for https (if you havent already)
 openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -config san.cnf -extensions v3_req
 
 # 1. Create a virtual environment (if you havent already)
@@ -54,7 +73,8 @@ source venv/bin/activate
 # 3. Install dependencies (in venv)
 pip install -r requirements.txt
 
-# 2. (Recommended) Run API over HTTPS using self-signed certificate with valid JSON output. 
+# 4. Start the FastAPI backend
+# (Recommended) Run API over HTTPS using self-signed certificate with valid JSON output. 
 uvicorn app.api:app \
   --host localhost \
   --port 8000 \
@@ -62,37 +82,59 @@ uvicorn app.api:app \
   --ssl-certfile cert.pem \
   --log-config logging_config.json
 
-# 2. (Optional) The API can optionally run over HTTPS using a self-signed certificate.
+# (Optional) The API can optionally run over HTTPS using a self-signed certificate.
 uvicorn app.api:app \
   --host 0.0.0.0 \
   --port 8000 \
   --ssl-keyfile key.pem \
   --ssl-certfile cert.pem
 
-# 2. (Quickstart) Start FastAPI backend
+# (Quickstart) Start FastAPI backend
 uvicorn app.api:app --reload
 
-# 3. Start HL7 listener (in new terminal)
+# 5. Start HL7 listener (in new terminal)
 source venv/bin/activate 
 python3 -m app.listener
 
-# 4. Send an HL7 message (in new terminal)
+# 6. Send HL7 message (in new terminal)
 source venv/bin/activate 
-python3 -m app.sender
-```
 
-Check API health:
-```sh
-curl http://localhost:8000/health
-# Expected: {"status":"ok"}
+# Send single message
+python3 -m app.sender --file examples/sample_adt_a01.hl7
+
+# Publish every 60 seconds, 10 times 
+python3 -m app.sender --schedule 60 --count 10
+
+# Publish indefinitely (Ctrl+C to stop)
+python3 -m app.sender --schedule 30
+
+# Publish with custom retry configuration
+python3 -m app.sender \
+  --file examples/sample_adt_a01.hl7 \
+  --host localhost \
+  --port 2575 \
+  --retries 5 \
+  --delay 2.0 \
+  --timeout 15
 ```
 
 Expected sender output:
 ```sh
+Sending message from examples/sample_adt_a01.hl7...
 Received ACK message:
-MSH|^~\&|ReceivingApp|ReceivingFacility|SendingApp|SendingFacility|20260304213451||ACK|edf37cf0-f8e8-44ff-a416-bb07f517f315|P|2.3
+MSH|^~\&|ReceivingApp|ReceivingFacility|SendingApp|SendingFacility|20260306200137||ACK|3c3b5c1d-c832-41c8-9b21-adcb2b7ffc94|P|2.3
 MSA|AA|123456
 ```
+
+Downstream API endpoint used by the listener:
+`POST https://localhost:8000/api/v1/messages`
+
+Check API health:
+```sh
+curl https://localhost:8000/health --insecure
+# Expected: {"status":"ok"}
+```
+
 
 ---
 
@@ -125,7 +167,7 @@ flowchart LR
 1. TCP listener accepts connection and receives MLLP-framed HL7 messages. 
 2. Messages are deframed and parsed with hl7apy. 
 3. Parsed messages are transformed into JSON. 
-4. JSON payload is POSTed to the FastAPI REST API over HTTPS. 
+4. JSON payload is POSTed to the FastAPI REST API over HTTPS. (POST https://localhost:8000/api/v1/messages) 
 5. Listener returns:
     - AA → Application Accept (success)
     - AE → Application Error (failure)
@@ -135,6 +177,7 @@ flowchart LR
 ## Features
 
 - **Dockerized Deployment:** Easily run the app and all dependencies in containers.
+- **HL7 Publishing:** HL& publisher with Single Message Mode and Scheduled Publishing Mode with Custom Retry Configuration and audit trail.
 - **HL7 Listener:** TCP/MLLP server, supports multiple clients via threading. 
 - **HL7 Parsing:** Uses [hl7apy](https://github.com/crs4/hl7apy) for  HL7 v2.x parsing.
 - **MLLP Framing:** Handles partial/multiple messages per TCP packet. 
@@ -146,6 +189,16 @@ flowchart LR
 - **Structured Logging:** Logs key metadata (timestamps, message_type, control_id, patient_id).
 - **Error Handling:** Returns appropriate HL7 ACK/NACK responses.
 - **HTTPS Support:** FastAPI backend can run with TLS using a self-signed certificate for local development.
+- **Reliable API Forwarding:** Listener includes exponential backoff retries for downstream API calls, configurable retry limits, and comprehensive audit logging for message traceability.
+
+
+### Key Publisher Features
+- **Connection Retries:** Automatically retries failed connections with configurable attempts.
+- **Scheduled Publishing:** Simulates real upstream systems with configurable intervals.
+- **Dynamic Message Updates:** Automatically updates timestamps and control IDs.
+- **Comprehensive Audit Logging:** Tracks every transmission attempt for compliance.
+- **Command-line Interface:** Flexible configuration without code changes.
+
 ---
 
 ## Project Structure
@@ -227,13 +280,30 @@ source venv/bin/activate
 ```
 
 ```sh
-python3 -m app.sender
+# Send single message
+python3 -m app.sender --file examples/sample_adt_a01.hl7
+
+# Publish every 60 seconds, 10 times 
+python3 -m app.sender --schedule 60 --count 10
+
+# Publish indefinitely (Ctrl+C to stop)
+python3 -m app.sender --schedule 30
+
+# Publish with custom retry configuration
+python3 -m app.sender \
+  --file examples/sample_adt_a01.hl7 \
+  --host localhost \
+  --port 2575 \
+  --retries 5 \
+  --delay 2.0 \
+  --timeout 15
 ```
 
 Expected sender output:
 ```sh
+Sending message from examples/sample_adt_a01.hl7...
 Received ACK message:
-MSH|^~\&|ReceivingApp|ReceivingFacility|SendingApp|SendingFacility|20260304213451||ACK|edf37cf0-f8e8-44ff-a416-bb07f517f315|P|2.3
+MSH|^~\&|ReceivingApp|ReceivingFacility|SendingApp|SendingFacility|20260306195938||ACK|80fc6f82-af14-414c-8eb8-1f5b2345e147|P|2.3
 MSA|AA|123456
 ```
 
@@ -287,7 +357,7 @@ uvicorn app.api:app \
 To verify the API is running and ready for monitoring, use:
 
 ```sh
-curl http://localhost:8000/health
+curl https://localhost:8000/health --insecure
 ```
 from a separate terminal. 
 
@@ -309,8 +379,8 @@ python3 -m app.listener
 ```
 
 Expected output:
-```sh
-Listening on 0.0.0.0:2575
+```
+{"asctime": "2026-03-06 17:27:58,889", "levelname": "INFO", "name": "hl7_listener", "message": "Listening on localhost:2575", "message_control_id": "", "patient_id": "", "message_type": "", "source_addr": ""}
 ```
 
 
@@ -412,7 +482,8 @@ pytest -m edge
 pytest -v tests/unit/test_listener.py -k cert_verification
 ```
 
-Note: when running tests, make sure app and/or listener isnt being run elsewhere as it will interfere with current CI tests
+Note: when running tests, ensure the API or listener is not already running on the same ports,
+otherwise tests may fail due to port conflicts. 
 
 
 Testing Highlights:
@@ -455,6 +526,24 @@ These safeguards help ensure robust handling of malformed or malicious input whi
 - **Extensibility:** Modular HL7 → JSON transformer for easy segment extension.
 - **Validation and defensive parsing:** HL7 input is treated as untrusted external data; therefore strict validation and defensive parsing are applied before transformation or downstream processing.
 - **Transport Security:** The REST API supports HTTPS using TLS certificates. For local development a self-signed certificate is used, while production deployments should use trusted certificates.
+ - **Reliability vs. Latency Trade-off:** The listener uses exponential backoff retries for API forwarding rather than failing fast, priotizing message delivery guarantee over immediate response latency.
+
+---
+
+## Security Considerations
+
+The listener includes several defensive mechanisms:
+- Message size limits to prevent DoS via oversized HL7 messages
+- Validation of required fields (control ID, patient ID)
+- Graceful handling of malformed HL7
+- Listener isolation to prevent crashes from invalid input
+- HTTPS communication for downstream API calls
+
+In production deployments additional protections would include:
+- TLS-enabled MLLP (MLLPS)
+- authentication for the downstream API
+- rate limiting
+- centralized logging and alerting
 
 ---
 
@@ -477,6 +566,8 @@ These safeguards help ensure robust handling of malformed or malicious input whi
 - **Advanced Validation:** Implement stricter HL7 validation and schema enforcement.
 - **Enhanced Observability:** Integrate with centralized logging and monitoring solutions (e.g., ELK, Prometheus).
 - **Horizontal Scalability:** Support for running multiple listener/API instances behind a load balancer.
+- **Dead Letter Queue:** Store messages that fail all retry attempts for manual review or automated reprocessing
+- **Circuit Breaker:** Prevent repeated retry attempts when downstream API is confirmed offline
 
 ---
 
@@ -488,7 +579,9 @@ These safeguards help ensure robust handling of malformed or malicious input whi
 - Missing required fields → AE returned
 - API failure → AE returned
 - Successful processing → AA returned
-
+- Exponential Backoff: Prevents overwhelming the API during recovery
+- Configurable Retry Count: Balance between reliability and latency
+- Audit Trail: Every forwarding attempt is logged with:
 Errors are logged for observability.
 
 ---
