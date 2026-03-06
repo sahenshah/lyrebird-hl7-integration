@@ -12,6 +12,9 @@ It receives HL7 messages, parses them, transforms them to JSON, forwards them to
 
 ### Option 1: Run with Docker (Recommended)
 ```sh
+# 0. Generate new certification and key for https (if you havent already)
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -config san.cnf -extensions v3_req
+
 # 1. Ensure Docker Desktop or Docker Engine and Docker Compose are installed and running
 # 2. Build and start all services
 docker compose up --build
@@ -39,6 +42,9 @@ MSA|AA|123456
 ```
 ### Option 2: Run Manually (Local Python)
 ```sh
+# 0. Generate new certification and key for https (if you havent already)
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -config san.cnf -extensions v3_req
+
 # 1. Create a virtual environment (if you havent already)
 python3 -m venv venv
 
@@ -184,6 +190,11 @@ pip install -r requirements.txt
 
 ### OPTION A: Running with Docker
 You can run the entire app stack using Docker and Docker Compose.
+
+### 0. Generate new certification and key for https (if you havent already)
+```sh
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -config san.cnf -extensions v3_req
+```
 
 ### 1. Build and Start the Services
 
@@ -360,11 +371,13 @@ The FastAPI backend can run over HTTPS using a self-signed TLS certificate.
 
 Generate a local certificate:
 ```sh
-openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -config san.cnf -extensions v3_req
 ```
 
 
-Because the certificate is self-signed, certificate verification is disabled in the listener (verify=False) for local development.
+The listener verifies HTTPS using `cert.pem` (`requests.post(..., verify=cert.pem)`) for local development.
+
+Important: The certificate must include SAN entries for `localhost` and `127.0.0.1` (provided by `san.cnf`) or hostname verification will fail.
 
 In production environments, a trusted certificate authority would be used instead.
 
@@ -392,6 +405,11 @@ pytest -v
 4. Run edge-case tests only:
 ```sh
 pytest -m edge
+```
+
+5. Run TLS verification regression test only:
+```sh
+pytest -v tests/unit/test_listener.py -k cert_verification
 ```
 
 Note: when running tests, make sure app and/or listener isnt being run elsewhere as it will interfere with current CI tests

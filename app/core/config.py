@@ -4,7 +4,7 @@ load_dotenv()
 
 HL7_HOST = os.getenv("HL7_HOST", "0.0.0.0")
 HL7_PORT = int(os.getenv("HL7_PORT", 2575))
-API_URL = os.getenv("API_URL", "http://localhost:8080/api/v1/messages")
+API_URL = os.getenv("API_URL", "https://localhost:8000/api/v1/messages")
 API_TIMEOUT = int(os.getenv("API_TIMEOUT", 5))
 BUFFER_SIZE_LIMIT = int(os.getenv("BUFFER_SIZE_LIMIT", 1048576))
 MAX_FRAMING_ERRORS = int(os.getenv("MAX_FRAMING_ERRORS", 5))

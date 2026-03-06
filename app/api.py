@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 import logging
 
-logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("app.api")
 
 app = FastAPI()
 
@@ -31,7 +31,7 @@ async def receive_message(payload: MessagePayload):
     Receives transformed HL7 messages as JSON payloads.
     Note: This endpoint is intended for integration with the HL7 listener service.
     """
-    logging.info(
+    logger.info(
         f"Received payload: {payload.model_dump_json()}",
         extra={
             "control_id": payload.message_control_id,

@@ -1,8 +1,11 @@
 import socket
 import logging
+import logging.config
+import json
 import requests
 import time
 import threading
+from pathlib import Path
 from app.core.retry import retry
 
 from hl7apy.parser import parse_message
@@ -24,6 +27,20 @@ from hl7apy.consts import VALIDATION_LEVEL
 from app.core.idempotency import IdempotencyGuard
 
 guard = IdempotencyGuard()
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+CERT_PATH = PROJECT_ROOT / "cert.pem"
+
+
+def configure_logging() -> None:
+    config_path = PROJECT_ROOT / "logging_config.json"
+    if not config_path.exists():
+        logging.basicConfig(level=logging.INFO)
+        return
+    with config_path.open("r", encoding="utf-8") as config_file:
+        logging.config.dictConfig(json.load(config_file))
+
+
+configure_logging()
 
 # Structured logging setup
 class ContextFilter(logging.Filter):
@@ -38,13 +55,8 @@ class ContextFilter(logging.Filter):
             record.source_addr = ""
         return True
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s %(levelname)s [%(message_control_id)s %(patient_id)s %(message_type)s %(source_addr)s] %(message)s'
-)
 logger = logging.getLogger("hl7_listener")
 logger.addFilter(ContextFilter())
-logging.getLogger().addFilter(ContextFilter())  # Also add to root logger if needed
 
 def get_logger_with_context(message_control_id="", patient_id="", message_type="", source_addr=""):
     return logging.LoggerAdapter(
@@ -74,9 +86,10 @@ def send_to_api(payload):
     """
     def call_api():
         response = requests.post(
-                       "https://localhost:8000/api/v1/messages",
+                       API_URL,
                        json=payload,
-                       verify=False # verify=False used for local self-signed certificate
+                       timeout=API_TIMEOUT,
+                       verify=str(CERT_PATH)
                    )
         response.raise_for_status()
         return response
@@ -86,7 +99,7 @@ def send_to_api(payload):
         max_attempts=MAX_RETRIES,
         backoff_base=RETRY_BACKOFF_BASE,
         exceptions=(requests.RequestException,),
-        logger=logging
+        logger=logger
     )
 
 def process_hl7_message(hl7_string, conn, addr):
@@ -144,7 +157,7 @@ def process_hl7_message(hl7_string, conn, addr):
             send_to_api(hl7_json)
             guard.mark_processed(message_control_id)
             log.info(f"[{message_control_id}] Message successfully processed, returning ACK")
-            logging.info(
+            log.info(
                 "Message successfully processed",
                 extra={
                     "control_id": hl7_json.get("message_control_id"),

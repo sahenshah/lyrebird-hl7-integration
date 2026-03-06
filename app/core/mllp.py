@@ -1,6 +1,8 @@
 import logging
 from app.core.config import MAX_FRAMING_ERRORS, MAX_BUFFER_SIZE
 
+logger = logging.getLogger("app.core.mllp")
+
 MLLP_START_BYTE = b"\x0b"
 MLLP_END_BYTES = b"\x1c\x0d"
 
@@ -20,7 +22,7 @@ def extract_messages_from_buffer(buffer: bytes, framing_error_count=0):
 
     while True:
         if len(buffer) > MAX_BUFFER_SIZE:
-            logging.error("Buffer size exceeded maximum limit. Clearing buffer.")
+            logger.error("Buffer size exceeded maximum limit. Clearing buffer.")
             return messages, b"", errors  # Optionally, close connection at caller
 
         start_index = buffer.find(MLLP_START_BYTE)
@@ -31,10 +33,10 @@ def extract_messages_from_buffer(buffer: bytes, framing_error_count=0):
 
         if end_index < start_index:
             errors += 1
-            logging.warning(f"Framing error detected ({errors}/{MAX_FRAMING_ERRORS}). Discarding data before end marker.")
+            logger.warning(f"Framing error detected ({errors}/{MAX_FRAMING_ERRORS}). Discarding data before end marker.")
             buffer = buffer[end_index + len(MLLP_END_BYTES):]
             if errors >= MAX_FRAMING_ERRORS:
-                logging.error("Too many framing errors. Clearing buffer.")
+                logger.error("Too many framing errors. Clearing buffer.")
                 return messages, b"", errors  # Optionally, close connection at caller
             continue
 
