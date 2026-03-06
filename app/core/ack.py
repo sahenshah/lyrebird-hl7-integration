@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 import uuid
 
 
@@ -25,7 +25,7 @@ def build_ack(original_message, ack_code="AA"):
     except Exception:
         # If original message is completely unusable,
         # return minimal fallback ACK
-        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
         return (
             f"MSH|^~\\&|||||{timestamp}||ACK|{uuid.uuid4()}|P|2.5\r"
             f"MSA|AE|\r"
@@ -37,7 +37,7 @@ def build_ack(original_message, ack_code="AA"):
     receiving_app = safe_get(msh.MSH_3)
     receiving_fac = safe_get(msh.MSH_4)
 
-    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
 
     original_control_id = safe_get(msh.MSH_10)
     version = safe_get(msh.MSH_12, default="2.5")
