@@ -124,7 +124,7 @@ curl https://localhost:8000/health --insecure
 
 **Architecture Diagram:**
 ```mermaid
-flowchart LR
+flowchart TD 
 
     A[External HL7 System] -->|HL7 v2 / MLLP| B[HL7 Listener]
 
