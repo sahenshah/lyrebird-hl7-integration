@@ -12,7 +12,7 @@ import argparse
 import sys
 from pathlib import Path
 from typing import Optional, Dict, Any
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 import json
 from app.core.mllp import frame_message, deframe_message
 from app.core.config import (
@@ -128,7 +128,7 @@ class HL7Publisher:
                 
                 # Audit log entry
                 audit_entry = {
-                    "timestamp": datetime.now(UTC).isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "message_control_id": message_control_id,
                     "attempt": attempt,
                     "success": is_success,
@@ -161,7 +161,7 @@ class HL7Publisher:
                 
                 # Audit log for failed attempt
                 self.audit_log.append({
-                    "timestamp": datetime.now(UTC).isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "message_control_id": message_control_id,
                     "attempt": attempt,
                     "success": False,

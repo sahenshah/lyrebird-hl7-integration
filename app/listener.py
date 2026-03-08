@@ -172,7 +172,7 @@ def process_hl7_message(hl7_string, conn, addr):
     except Exception as e:
         log.error(f"Processing error: {e}")
         try:
-            parsed = parse_message(hl7_string, validation_level=VALIDATION_LEVEL.TOLERANT)
+            parsed = parse_message(hl7_string, validation_level=VALIDATION_LEVEL.STRICT)
             ack = build_ack(parsed, "AE")
         except Exception as parse_e:
             log.error(f"parse_message failed in exception handler: {parse_e}")
