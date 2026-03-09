@@ -227,28 +227,42 @@ A -->|HTTPS| D
 
 ## Project Structure
 
-```
+```text
 lyrebird-hl7-integration/
 ├── app/
 │   ├── core/
-│   │   ├── ack.py         # HL7 ACK builder
-│   │   ├── mllp.py        # MLLP framing/deframing
-│   │   ├── config.py      # Configuration from .env
-│   │   └── idempotency.py # Thread-safe TTL idempotency guard
+│   │   ├── ack.py         # HL7 ACK/NACK message builder
+│   │   ├── mllp.py        # MLLP framing, deframing, and extraction helpers
+│   │   ├── config.py      # Centralized environment/config settings
+│   │   ├── idempotency.py # Thread-safe TTL idempotency guard
+│   │   └── retry.py       # Generic retry utility with exponential backoff
 │   ├── services/
-│   │   └── transformer.py # HL7 → JSON transformer
-│   ├── api.py             # FastAPI backend
-│   ├── listener.py        # HL7 TCP/MLLP listener
-│   └── sender.py          # HL7 sender client
+│   │   └── transformer.py # HL7 → JSON transformation logic
+│   ├── api.py             # FastAPI backend API (receives transformed payloads)
+│   ├── listener.py        # HL7 TCP/MLLP listener and ACK generation
+│   ├── sender.py          # HL7 sender client/publisher (CLI)
+│   └── stub_api.py        # HTTPS downstream stub API for local testing
 ├── examples/
-│   └── sample_adt_a01.hl7 # Example HL7 message
-├── tests/                 
-│   └── unit/              # Unit Tests 
-│   └── integration/       # Integration Tests
-│   └── edge_cases/        # Edge case tests
-│   └── smoke_test/        # Smoke tests
-├── .env                   # Environment configuration
-└── README.md
+│   └── sample_adt_a01.hl7 # Example HL7 ADT message
+├── logs/
+│   └── publisher_audit.jsonl # Publisher audit log (JSONL)
+├── certs/
+│   ├── openssl-stub.cnf   # OpenSSL config for local stub certificate SANs
+│   ├── stub.crt           # Self-signed certificate for stub API TLS
+│   └── stub.key           # Private key for stub API TLS
+├── tests/
+│   ├── unit/              # Unit tests
+│   ├── integration/       # Integration tests
+│   ├── edge_cases/        # Edge-case and robustness tests
+│   └── smoke_test/        # Smoke tests (end-to-end workflow checks)
+├── logging_config.json    # Python logging configuration
+├── README.md              # Project documentation
+├── LICENSE                # MIT license text
+├── Dockerfile             # Container image definition
+├── docker_compose.yml     # Multi-service local orchestration
+├── .env                   # Environment variables
+├── pytest.ini             # Pytest configuration
+└── requirements.txt       # Python dependencies
 ```
 
 ---
