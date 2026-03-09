@@ -18,7 +18,7 @@ Thumbs.db
 
 # Logs
 *.log
-publisher_audit.json
+publisher_audit.jsonl
 
 # Test and coverage outputs
 htmlcov/
@@ -39,6 +39,5 @@ htmlcov/
 .env
 
 # TLS secrets
-cert.pem
-key.pem
-*.pem
+stub.crt
+stub.key

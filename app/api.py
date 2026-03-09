@@ -1,12 +1,14 @@
+import logging
+import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-import logging
+from app.core.config import DOWNSTREAM_API_URL, DOWNSTREAM_CA_BUNDLE
+import httpx 
 
 logger = logging.getLogger("app.api")
 
 app = FastAPI()
-
 
 class Patient(BaseModel):
     mrn: str
@@ -42,6 +44,14 @@ async def receive_message(payload: MessagePayload):
 
     if not payload.patient.mrn:
         raise HTTPException(status_code=400, detail="Missing patient MRN")
+
+    async with httpx.AsyncClient(verify=DOWNSTREAM_CA_BUNDLE, timeout=10.0) as client:
+        try:
+            response = await client.post(DOWNSTREAM_API_URL, json=payload.model_dump())
+            response.raise_for_status()
+        except Exception as e:
+            logger.error(f"Failed to post to downstream API: {e}")
+            raise HTTPException(status_code=502, detail="Downstream API call failed")
 
     return {"status": "received"}
 

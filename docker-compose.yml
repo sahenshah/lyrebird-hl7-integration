@@ -3,9 +3,11 @@ services:
     build: .
     env_file:
       - .env
-    ports:
-      - "8000:8000"
-    command: uvicorn app.api:app --host 0.0.0.0 --port 8000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./certs:/certs:ro
+    command: uvicorn app.api:app --host ${API_BIND_HOST:-0.0.0.0} --port ${API_BIND_PORT:-8000} --log-config logging_config.json
     restart: unless-stopped
 
   listener:
@@ -15,6 +17,8 @@ services:
       - backend
     env_file:
       - .env
+    environment:
+      API_URL: http://backend:8000/api/v1/messages
     ports:
       - "2575:2575"
     command: python3 -m app.listener

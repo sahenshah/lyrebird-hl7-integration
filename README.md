@@ -4,16 +4,45 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 A minimal HL7 v2.x integration service using TCP/MLLP.  
-It receives HL7 messages, parses them, transforms them to JSON, forwards them to a REST API, and returns HL7-compliant ACK/NACK responses.
+It receives HL7 messages, parses them, transforms them to JSON, forwards them to an HTTPS REST API, and returns HL7-compliant ACK/NACK responses.
 
 ---
 
 ## TL;DR – Quick Start
 
-### Option 1: Run with Docker (Recommended)
+Note: all commands to be run from project root
+
+### Run the downstream `stub_api` over HTTPS
+**1. Generate certs for REST API stub**
 ```sh
-# 0. Generate new certificate and key for https (if you havent already)
-openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -config san.cnf -extensions v3_req
+openssl req -x509 -nodes -days 365 \
+  -newkey rsa:2048 \
+  -keyout certs/stub.key \
+  -out certs/stub.crt \
+  -config certs/openssl-stub.cnf
+```
+
+**2. Run stub API with TLS**
+```sh
+uvicorn stub_api:app \
+  --host 0.0.0.0 \
+  --port 9000 \
+  --ssl-keyfile certs/stub.key \
+  --ssl-certfile certs/stub.crt
+```
+
+**3. Configure backend to call stub API**
+Set in `.env`:
+```dotenv
+DOWNSTREAM_API_URL=https://localhost:9000/receive
+DOWNSTREAM_CA_BUNDLE=~/lyrebird-hl7-integration/certs/stub.crt
+```
+
+### Option 1: Run backend and listener with Docker (Recommended)
+```sh
+# 0. ensure API_URL and DOWNSTREAM_API_URL in .env is set to:
+API_URL=http://backend:8000/api/v1/messages
+DOWNSTREAM_API_URL=https://host.docker.internal:9000/receive
 
 # 1. Ensure Docker Desktop or Docker Engine and Docker Compose are installed and running
 # 2. Starts both the HL7 Listener (on port 2575) and the FastAPI Backend (on port 8000) in separate containers. 
@@ -31,11 +60,11 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-
-### Option 2: Run Manually (Local Python)
+### Option 2: Run backend and listener Manually (Local Python)
 ```sh
-# 0. Generate new certificate and key for https (if you havent already)
-openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -config san.cnf -extensions v3_req
+# 0. ensure API_URL and DOWNSTREAM_API_URL in .env is set to:
+API_URL=http://localhost:8000/api/v1/messages
+DOWNSTREAM_API_URL=https://localhost:9000/receive
 
 # 1. Create a virtual environment (if you havent already)
 python3 -m venv venv
@@ -46,26 +75,13 @@ source venv/bin/activate
 # 3. Install dependencies (in venv)
 pip install -r requirements.txt
 
-# 4. Start the FastAPI backend
-# (Recommended) Run API over HTTPS using self-signed certificate with valid JSON output. 
-uvicorn app.api:app \
-  --host localhost \
-  --port 8000 \
-  --ssl-keyfile key.pem \
-  --ssl-certfile cert.pem \
-  --log-config logging_config.json
-
-# (Optional) The API can optionally run over HTTPS using a self-signed certificate.
+# Start the FastAPI backend (HTTP)
 uvicorn app.api:app \
   --host 0.0.0.0 \
   --port 8000 \
-  --ssl-keyfile key.pem \
-  --ssl-certfile cert.pem
+  --log-config logging_config.json
 
-# (Quickstart) Start FastAPI backend
-uvicorn app.api:app --reload
-
-# 5. Start HL7 listener (in new terminal)
+# Start HL7 listener (new terminal)
 source venv/bin/activate 
 python3 -m app.listener
 ```
@@ -102,15 +118,22 @@ MSH|^~\&|ReceivingApp|ReceivingFacility|SendingApp|SendingFacility|2026030620013
 MSA|AA|123456
 ```
 
-Downstream API endpoint used by the listener:
-`POST https://localhost:8000/api/v1/messages`
+Expected stub API output:
+```sh
+Received downstream payload: {'message_type': 'ADT^A01', 'message_control_id': '123456', 'patient': {'mrn': 'MRN12345', 'first_name': 'John', 'last_name': 'Doe', 'dob': '19900101', 'sex': 'M'}, 'source': {'sending_app': 'SendingApp', 'sending_facility': 'SendingFacility'}}
+```
 
 Check API health:
 ```sh
-curl https://localhost:8000/health --insecure
+curl http://localhost:8000/health
 # Expected: {"status":"ok"}
 ```
 
+API endpoint used by the listener:
+`POST http://localhost:8000/api/v1/messages`
+
+Downstream API endpoint (stub):
+`POST https://localhost:9000/receive`
 
 ---
 
@@ -143,8 +166,9 @@ flowchart TD
 1. TCP listener accepts connection and receives MLLP-framed HL7 messages. 
 2. Messages are deframed and parsed with hl7apy. 
 3. Parsed messages are transformed into JSON. 
-4. JSON payload is POSTed to the FastAPI REST API over HTTPS. (POST https://localhost:8000/api/v1/messages) 
-5. Listener returns:
+4. JSON payload is POSTed to the FastAPI REST API over HTTP. (POST http://localhost:8000/api/v1/messages) 
+5. Backend forwards payload to sample HTTPS downstream stub API.
+6. Listener returns:
     - AA → Application Accept (success)
     - AE → Application Error (failure)
 
@@ -164,7 +188,6 @@ flowchart TD
 - **Idempotency Guard:** Thread-safe in-memory cache to prevent duplicate processing. 
 - **Structured Logging:** Logs key metadata (timestamps, message_type, control_id, patient_id).
 - **Error Handling:** Returns appropriate HL7 ACK/NACK responses.
-- **HTTPS Support:** FastAPI backend can run with TLS using a self-signed certificate for local development.
 - **Reliable API Forwarding:** Listener includes exponential backoff retries for downstream API calls, configurable retry limits, and comprehensive audit logging for message traceability.
 
 
@@ -219,11 +242,6 @@ pip install -r requirements.txt
 
 ### OPTION A: Running with Docker
 You can run the entire app stack using Docker and Docker Compose.
-
-### 0. Generate new certification and key for https (if you havent already)
-```sh
-openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -config san.cnf -extensions v3_req
-```
 
 ### 1. Build and Start the Services
 
@@ -413,21 +431,21 @@ Example transformed payload:
 
 ## HTTPS Support
 
-The FastAPI backend can run over HTTPS using a self-signed TLS certificate.
+This project keeps the internal listener -> backend hop on HTTP, and uses HTTPS for the downstream sample API.
 
-Why `san.cnf` is needed:
+Why `openssl-stub.cnf` is needed:
 Modern TLS clients validate the Subject Alternative Name (SAN), not just the certificate Common Name (CN).
 If `localhost` and `127.0.0.1` are missing from SAN, HTTPS verification will fail with hostname mismatch errors.
 
-Create `san.cnf` in the project root with the following content:
+Create `openssl-stub.cnf` in the /certs directory with the following content:
 
 ```ini
 [req]
 default_bits = 2048
 prompt = no
 default_md = sha256
-x509_extensions = v3_req
 distinguished_name = dn
+x509_extensions = v3_req
 
 [dn]
 CN = localhost
@@ -440,22 +458,14 @@ DNS.1 = localhost
 IP.1 = 127.0.0.1
 ```
 
-Generate a local certificate:
+Generate certificate for stub API:
 ```sh
-openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -config san.cnf -extensions v3_req
+openssl req -x509 -nodes -days 365 \
+  -newkey rsa:2048 \
+  -keyout certs/stub.key \
+  -out certs/stub.crt \
+  -config certs/openssl-stub.cnf
 ```
-
-Verify SAN values are present:
-```sh
-openssl x509 -in cert.pem -noout -text | grep -nE "Subject Alternative Name|DNS:|IP Address:"
-```
-
-
-The listener verifies HTTPS using `cert.pem` (`requests.post(..., verify=cert.pem)`) for local development.
-
-Important: The certificate must include SAN entries for `localhost` and `127.0.0.1` (provided by `san.cnf`) or hostname verification will fail.
-
-In production environments, a trusted certificate authority would be used instead.
 
 ---
 
@@ -545,12 +555,17 @@ The listener includes several defensive mechanisms:
 - Listener isolation to prevent crashes from invalid input
 - HTTPS communication for downstream API calls
 
+The parser further enforces a STRICT validation level to reject malformed/non-conformant HL7, and raises an exception for:
+- Invalid segment structure/order
+- Missing required fields/components
+- Invalid datatype/format values
+- Values that violate HL7 constraints for the declared version
+
 In production deployments additional protections would include:
 - TLS-enabled MLLP (MLLPS)
-- authentication for the downstream API
-- rate limiting
-- centralized logging and alerting
-
+- Rate limiting
+- Centralized logging and alerting
+- HTTPS for internal listener -> backend hop (production hardening)
 ---
 
 ## Limitations
@@ -567,10 +582,10 @@ In production deployments additional protections would include:
 
 - **Persistent/Distributed Idempotency:** Use Redis (with SETNX + TTL) or another shared store for production-grade idempotency across restarts and multiple instances.
 - **Full HL7 Segment Support:** Expand parsing and transformation to cover more HL7 segments and fields.
-- **TLS/SSL Support:** Add encrypted transport for both listener and API.
+- **TLS/SSL Support:** Add encrypted transport for internal listener -> FastAPI backend hop. 
 - **Message Queue Integration:** Add support for publishing messages to Kafka, RabbitMQ, or similar.
 - **Advanced Validation:** Implement stricter HL7 validation and schema enforcement.
-- **Enhanced Observability:** Integrate with centralized logging and monitoring solutions (e.g., ELK, Prometheus).
+- **Enhanced Observability:** Integrate with centralized logging and monitoring solutions
 - **Horizontal Scalability:** Support for running multiple listener/API instances behind a load balancer.
 - **Dead Letter Queue:** Store messages that fail all retry attempts for manual review or automated reprocessing
 - **Circuit Breaker:** Prevent repeated retry attempts when downstream API is confirmed offline

@@ -56,7 +56,7 @@ class HL7Publisher:
         if audit_log_path:
             self.audit_log_path = Path(audit_log_path)
         else:
-            self.audit_log_path = Path(__file__).parent.parent / "logs" / "publisher_audit.json"
+            self.audit_log_path = Path(__file__).parent.parent / "logs" / "publisher_audit.jsonl"
 
         self.audit_log_path.parent.mkdir(parents=True, exist_ok=True)
         
@@ -235,14 +235,15 @@ class HL7Publisher:
             logger.info("Scheduled publishing stopped")
     
     def save_audit_log(self, path: Optional[Path] = None):
-        """Save audit log to file."""
+        """Append audit log entries to file as JSON lines."""
         save_path = path or self.audit_log_path
         try:
-            with open(save_path, 'w') as f:
-                json.dump(self.audit_log, f, indent=2)
-            logger.info(f"Audit log saved to {save_path}")
+            with open(save_path, 'a') as f:
+                for entry in self.audit_log:
+                    f.write(json.dumps(entry) + "\n")
+            logger.info(f"Audit log appended to {save_path}")
         except Exception as e:
-            logger.error(f"Failed to save audit log: {e}")
+            logger.error(f"Failed to append audit log: {e}")
 
 
 def main():
@@ -264,7 +265,7 @@ def main():
     parser.add_argument("--timeout", type=int, default=10,
                        help="Connection timeout (seconds)")
     parser.add_argument("--audit-log", type=Path,
-                       help="Path for audit log file (default: ./logs/publisher_audit.json)")
+                       help="Path for audit log file (default: ./logs/publisher_audit.jsonl)")
     parser.add_argument("--no-audit", action="store_true",
                        help="Disable audit logging")
     parser.add_argument("--verbose", action="store_true",
@@ -289,7 +290,7 @@ def main():
         if args.audit_log:
             audit_log_path = args.audit_log
         else:
-            pass
+            audit_log_path = Path(__file__).parent.parent / "logs" / "publisher_audit.jsonl"
     
     publisher = HL7Publisher(
         host=args.host,

@@ -5,5 +5,5 @@ hl7apy~=1.3
 pytest~=8.0
 pytest-mock
 python-dotenv
-httpx
 python-json-logger
+httpx
