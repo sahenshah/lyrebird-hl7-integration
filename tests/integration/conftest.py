@@ -41,14 +41,36 @@ def _wait_for_port(host: str, port: int, timeout: int = 10) -> None:
     raise RuntimeError(f"Timeout waiting for {host}:{port}")
 
 
+def _failed_process_details(proc: subprocess.Popen, service_name: str) -> str:
+    try:
+        stdout_data, stderr_data = proc.communicate(timeout=1)
+    except Exception:
+        stdout_data, stderr_data = "", ""
+    stdout_preview = (stdout_data or "").strip()[-2000:]
+    stderr_preview = (stderr_data or "").strip()[-2000:]
+    return (
+        f"{service_name} exited early with code {proc.returncode}.\n"
+        f"stdout:\n{stdout_preview or '<empty>'}\n"
+        f"stderr:\n{stderr_preview or '<empty>'}"
+    )
+
+
 def _verify_for_url(url: str) -> str | bool:
     # Only provide CA bundle for HTTPS endpoints.
     return CA_CERT_PATH if urlparse(url).scheme == "https" else True
 
 
-def _wait_for_http(url: str, timeout: int = 10, verify: str | bool = True) -> None:
+def _wait_for_http(
+    url: str,
+    timeout: int = 10,
+    verify: str | bool = True,
+    proc: subprocess.Popen | None = None,
+    service_name: str = "service",
+) -> None:
     start = time.time()
     while time.time() - start < timeout:
+        if proc is not None and proc.poll() is not None:
+            raise RuntimeError(_failed_process_details(proc, service_name))
         try:
             requests.get(url, timeout=1, verify=verify)
             return
@@ -85,9 +107,11 @@ def _stop_process(proc: subprocess.Popen) -> None:
     proc.wait(timeout=10)
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="module", autouse=True)
 def start_stub_api(): # starts a simple HTTPS REST API server to act as the downstream API for integration tests
     cmd = [
+        sys.executable,
+        "-m",
         "uvicorn",
         "app.stub_api:app",
         "--host",
@@ -101,13 +125,19 @@ def start_stub_api(): # starts a simple HTTPS REST API server to act as the down
     ]
     proc = _popen(cmd)
     try:
-        _wait_for_http(DOWNSTREAM_API_URL, timeout=15, verify=_verify_for_url(DOWNSTREAM_API_URL))
+        _wait_for_http(
+            DOWNSTREAM_API_URL,
+            timeout=15,
+            verify=_verify_for_url(DOWNSTREAM_API_URL),
+            proc=proc,
+            service_name="downstream stub API",
+        )
         yield
     finally:
         _stop_process(proc)
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="module", autouse=True)
 def start_backend(start_stub_api):
     env = os.environ.copy()
     env["API_URL"] = f"{API_URL}"
@@ -122,6 +152,8 @@ def start_backend(start_stub_api):
     env["DOWNSTREAM_API_URL"] = f"https://{stub_host}:{stub_port}{stub_path}"
 
     cmd = [
+        sys.executable,
+        "-m",
         "uvicorn",
         "app.api:app",
         "--host",
@@ -133,22 +165,25 @@ def start_backend(start_stub_api):
 
     proc = _popen(cmd, env=env)
     try:
-        _wait_for_http(API_URL, timeout=15, verify=_verify_for_url(API_URL))
+        _wait_for_http(
+            API_URL,
+            timeout=15,
+            verify=_verify_for_url(API_URL),
+            proc=proc,
+            service_name="FastAPI backend",
+        )
         yield
     finally:
         _stop_process(proc)
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="module", autouse=True)
 def start_listener(start_backend):
     env = os.environ.copy()
     env["LISTENER"] = f"{HL7_HOST}:{HL7_PORT}"  # HL7 listener bind target
 
-    cmd = ["python3", "-m", "app.listener"]
-    try:
-        proc = _popen(cmd, env=env)
-    except FileNotFoundError:
-        proc = _popen(["python", "-m", "app.listener"], env=env)
+    cmd = [sys.executable, "-m", "app.listener"]
+    proc = _popen(cmd, env=env)
 
     try:
         _wait_for_port(HL7_HOST, HL7_PORT, timeout=15)

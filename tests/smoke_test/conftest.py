@@ -2,6 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 import socket
 import subprocess
+import sys
 import time
 import pytest
 
@@ -26,6 +27,8 @@ def project_root() -> Path:
 def downstream_api(project_root: Path):
     proc = subprocess.Popen(
         [
+            sys.executable,
+            "-m",
             "uvicorn",
             "app.stub_api:app",
             "--host",
@@ -59,7 +62,7 @@ def _warmup_sender(project_root: Path, timeout_s: int = 45) -> None:
 
     while time.time() < deadline:
         p = subprocess.run(
-            ["python3", "-m", "app.sender", "--file", str(msg)],
+            [sys.executable, "-m", "app.sender", "--file", str(msg)],
             cwd=project_root,
             capture_output=True,
             text=True,

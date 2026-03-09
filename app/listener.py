@@ -6,6 +6,7 @@ import requests
 import time
 import threading
 from pathlib import Path
+from urllib.parse import urlparse
 from app.core.retry import retry
 
 from hl7apy.parser import parse_message
@@ -14,11 +15,14 @@ from app.core.config import (
     HL7_PORT, 
     API_URL, 
     API_TIMEOUT, 
+    API_CA_BUNDLE,
     MAX_RETRIES, 
     RETRY_BACKOFF_BASE, 
     MAX_FRAMING_ERRORS, 
     MAX_BUFFER_SIZE,
-    MAX_MESSAGE_SIZE 
+    MAX_MESSAGE_SIZE,
+    IDEMPOTENCY_TTL_SECONDS,
+    IDEMPOTENCY_MAXSIZE,
 )
 from app.core.mllp import deframe_message, frame_message, extract_messages_from_buffer
 from app.core.ack import build_ack
@@ -26,9 +30,11 @@ from app.services.transformer import transform_hl7_to_json, normalize_hl7_segmen
 from hl7apy.consts import VALIDATION_LEVEL
 from app.core.idempotency import IdempotencyGuard
 
-guard = IdempotencyGuard()
+guard = IdempotencyGuard(
+    ttl_seconds=IDEMPOTENCY_TTL_SECONDS,
+    maxsize=IDEMPOTENCY_MAXSIZE,
+)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-CERT_PATH = PROJECT_ROOT / "cert.pem"
 
 
 def configure_logging() -> None:
@@ -84,12 +90,19 @@ def send_to_api(payload):
     Raises:
         requests.RequestException: If all retry attempts fail.
     """
+    parsed_url = urlparse(API_URL)
+    verify_tls: str | bool = True
+    if parsed_url.scheme == "https" and API_CA_BUNDLE:
+        if not Path(API_CA_BUNDLE).exists():
+            raise FileNotFoundError(f"API_CA_BUNDLE not found: {API_CA_BUNDLE}")
+        verify_tls = API_CA_BUNDLE
+
     def call_api():
         response = requests.post(
                        API_URL,
                        json=payload,
                        timeout=API_TIMEOUT,
-                       verify=str(CERT_PATH)
+                       verify=verify_tls,
                    )
         response.raise_for_status()
         return response

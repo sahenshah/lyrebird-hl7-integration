@@ -21,5 +21,5 @@ COPY logging_config.json ./
 # Expose ports
 EXPOSE 2575
 
-# Default command: start FastAPI backend over HTTPS using self-signed certificate with valid JSON output.
-CMD ["uvicorn", "app.api:app", "--host", "$API_BIND_HOST", "--port", "$API_BIND_PORT", "--log-config", "logging_config.json"]
+# Default command: start FastAPI backend using configured bind host/port.
+CMD ["sh", "-c", "uvicorn app.api:app --host ${API_BIND_HOST:-0.0.0.0} --port ${API_BIND_PORT:-8000} --log-config logging_config.json"]

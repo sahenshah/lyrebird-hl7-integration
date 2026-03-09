@@ -1,18 +1,30 @@
 import logging
-from hl7apy.parser import parse_message
 
 def transform_hl7_to_json(message):
+    if not hasattr(message, "MSH") or not message.MSH:
+        raise ValueError("Missing MSH segment")
+    if not hasattr(message, "PID") or not message.PID:
+        raise ValueError("Missing PID segment")
+
     msh = message.MSH
     pid = message.PID
-
-    if not hasattr(message, "PID") or not message.PID: 
-        raise ValueError("Missing PID segment")
 
     if not hasattr(msh, "MSH_10") or not msh.MSH_10 or not msh.MSH_10.to_er7():
         raise ValueError("Missing message control ID (MSH-10)")
 
+    if not hasattr(pid, "PID_3") or not pid.PID_3 or not pid.PID_3.to_er7():
+        raise ValueError("Missing patient MRN (PID-3)")
+
+    if not hasattr(msh, "MSH_9") or not msh.MSH_9 or not msh.MSH_9.to_er7():
+        raise ValueError("Missing message type (MSH-9)")
+
+    patient_name = pid.PID_5.to_er7() if hasattr(pid, "PID_5") and pid.PID_5 else ""
+
     # Split PID_5 into last_name / first_name
-    last_name, first_name = pid.PID_5.to_er7().split('^') if '^' in pid.PID_5.to_er7() else (pid.PID_5.to_er7(), '')
+    if "^" in patient_name:
+        last_name, first_name = patient_name.split("^", 1)
+    else:
+        last_name, first_name = patient_name, ""
 
     return {
         "message_control_id": msh.MSH_10.to_er7(),

@@ -257,7 +257,7 @@ lyrebird-hl7-integration/
 ├── README.md              # Project documentation
 ├── LICENSE                # MIT license text
 ├── Dockerfile             # Container image definition
-├── docker_compose.yml     # Multi-service local orchestration
+├── docker-compose.yml     # Multi-service local orchestration
 ├── .env                   # Environment variables
 ├── pytest.ini             # Pytest configuration
 └── requirements.txt       # Python dependencies
@@ -317,7 +317,7 @@ pytest -v
   - MLLP frame/deframe and extraction
   - HL7 transform + validation errors
 
--**Smoke Test Suite**
+- **Smoke Test Suite**
 - This test suite requires docker to be installed
 - The smoke tests validate the end-to-end HL7 flow with minimal setup checks.
 - **test_01_normal**: verifies core services are reachable and basic send path works.
@@ -355,7 +355,7 @@ pytest -v
 - **Structured Logging:** Logs timestamps, control_id, message_type, patient_id.
 - **Extensibility:** Modular HL7 → JSON transformer for easy segment extension.
 - **Validation and defensive parsing:** HL7 input is treated as untrusted external data; therefore strict validation and defensive parsing are applied before transformation or downstream processing.
-- **Transport Security:** The REST API supports HTTPS using TLS certificates. For local development a self-signed certificate is used, while production deployments should use trusted certificates.
+- **Transport Security:** The listener → backend hop is HTTP by default (configurable to HTTPS via `API_URL` + `API_CA_BUNDLE`), while backend → downstream uses HTTPS.
  - **Reliability vs. Latency Trade-off:** The listener uses exponential backoff retries for API forwarding rather than failing fast, prioritizing message delivery guarantee over immediate response latency.
 
 ---
