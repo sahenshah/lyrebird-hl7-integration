@@ -81,10 +81,10 @@ source venv/bin/activate
 python3 -m app.sender --file examples/sample_adt_a01.hl7
 
 # Publish every 60 seconds, 10 times 
-python3 -m app.sender --schedule 60 --count 10
+python3 -m app.sender --file examples/sample_adt_a01.hl7 --schedule 60 --count 10
 
 # Publish indefinitely (Ctrl+C to stop)
-python3 -m app.sender --schedule 30
+python3 -m app.sender --file examples/sample_adt_a01.hl7 --schedule 30
 
 # Publish with custom retry configuration
 python3 -m app.sender \
