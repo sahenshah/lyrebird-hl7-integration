@@ -319,6 +319,8 @@ pytest -v
   - Backend → downstream uses HTTPS with CA bundle verification.
 - **Operational safeguards:** Retry with exponential backoff for transient failures; idempotency reduces duplicate side effects.
 
+- **Protection scope note:** Beyond the thread-safe idempotency cache, controls include strict MLLP frame validation, buffer/message size limits, required-field validation, defensive parsing, and bounded retry behavior.
+
 ---
 
 ## Design Decisions
@@ -337,13 +339,14 @@ pytest -v
 ## Limitations
 
 - **Idempotency is in-memory by default:** Uses local process memory (`TTLCache`), so entries do not survive restarts and are not shared across instances/containers without Redis (or similar shared store).
+- **MLLP framing assumption:** Current MLLP handling assumes standard framing bytes only: start block `0x0B` (VT), end block `0x1C` (FS), followed by `0x0D` (CR). Non-standard framing variants are not supported without code changes.
 - **Minimal HL7 segment coverage:** Only core segments (e.g., MSH, PID) are parsed and transformed; additional segments require extension.
-- **Self-signed TLS certificates are used for local HTTPS support:** In production environments, certificates issued by a trusted certificate authority should be used. 
-- **No message queue integration:** (e.g. Kafka) for downstream processing.
-- **Minimal HL7 validation or schema enforcement:** Validation exists for core fields; full schema-level validation is not implemented.
-- **Potential Single Point of Failure:** The listener is a critical piece of infrastructure that both receives HL7 messages and forwards them to the API. If the listener crashes, messages are lost.
-- **No messaging order guarantees:** Messages are processed concurrently and do not guarantee a strict ordering
-- **Message Durability:** Messages are currently processed by in-memory listener. if the process crashes before downstream API call is complete, message may be lost. Can be mitigated using message queues. 
+- **Self-signed TLS certificates are used for local HTTPS support:** In production, use certificates from a trusted CA.
+- **No message queue integration:** (e.g., Kafka) for downstream processing.
+- **Minimal HL7 validation/schema enforcement:** Core-field validation exists; full schema-level validation is not implemented.
+- **Potential single point of failure:** If the listener crashes, inbound messages can be lost.
+- **No strict ordering guarantee:** Concurrent processing does not ensure global order.
+- **Message durability gap:** If process failure occurs before downstream completion, messages may be lost.
 
 ---
 
