@@ -1,17 +1,17 @@
 import threading
+from cachetools import TTLCache
 
 
 class IdempotencyGuard:
     """
-    Thread-safe in-memory idempotency guard.
+    Thread-safe in-memory idempotency guard with TTL.
 
-    Stores successfully processed message_control_id values.
-    Does NOT persist across restarts.
+    Keys expire automatically after ttl_seconds.
     """
 
-    def __init__(self):
+    def __init__(self, ttl_seconds: int = 24 * 60 * 60, maxsize: int = 100_000):
         self._lock = threading.Lock()
-        self._processed = set()
+        self._processed = TTLCache(maxsize=maxsize, ttl=ttl_seconds)
 
     def is_processed(self, control_id: str) -> bool:
         with self._lock:
@@ -19,9 +19,19 @@ class IdempotencyGuard:
 
     def mark_processed(self, control_id: str) -> None:
         with self._lock:
-            self._processed.add(control_id)
+            self._processed[control_id] = True
+
+    def mark_if_new(self, control_id: str) -> bool:
+        """
+        Atomic check+mark.
+        Returns True if newly marked, False if already seen.
+        """
+        with self._lock:
+            if control_id in self._processed:
+                return False
+            self._processed[control_id] = True
+            return True
 
     def clear(self) -> None:
-        """Used only for testing."""
         with self._lock:
             self._processed.clear()

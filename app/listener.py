@@ -147,9 +147,8 @@ def process_hl7_message(hl7_string, conn, addr):
         hl7_json = transform_hl7_to_json(parsed)
         control_id = hl7_json["message_control_id"]
 
-        if guard.is_processed(message_control_id):
-            log.info(f"[{message_control_id}] Duplicate message detected — skipping API call")
-            ack = build_ack(parsed, ack_code="AA")
+        if not guard.mark_if_new(message_control_id):
+            # duplicate -> skip processing / return ACK path as designed
             return
 
         try:

@@ -205,7 +205,10 @@ A -->|HTTPS| D
 - **JSON Transformation:** Modular HL7 → JSON transformer.
 - **Buffer Size & Framing Error Limits:** Enforces a buffer size limit (default: 1 MB) and limits repeated framing errors (default: 5) to prevent memory exhaustion or protocol abuse.
 - **FastAPI Backend:** Example REST API endpoint for processed messages.
-- **Idempotency Guard:** Thread-safe in-memory cache to prevent duplicate processing. 
+- **Idempotency Guard:** Thread-safe in-memory TTL cache (`cachetools.TTLCache`) to prevent duplicate processing.
+  - Atomic check-and-mark via `mark_if_new(control_id)`
+  - Auto-expiry via TTL (default: 24h)
+  - Bounded cache size (default: 100,000 keys)
 - **Structured Logging:** Logs key metadata (timestamps, message_type, control_id, patient_id).
 - **Error Handling:** Returns appropriate HL7 ACK/NACK responses.
 - **Reliable API Forwarding:** Listener includes exponential backoff retries for backend API calls, configurable retry limits, and comprehensive audit logging for message traceability.
@@ -228,7 +231,8 @@ lyrebird-hl7-integration/
 │   ├── core/
 │   │   ├── ack.py         # HL7 ACK builder
 │   │   ├── mllp.py        # MLLP framing/deframing
-│   │   └── config.py      # Configuration from .env
+│   │   ├── config.py      # Configuration from .env
+│   │   └── idempotency.py # Thread-safe TTL idempotency guard
 │   ├── services/
 │   │   └── transformer.py # HL7 → JSON transformer
 │   ├── api.py             # FastAPI backend
@@ -332,7 +336,7 @@ pytest -v
 
 ## Limitations
 
-- **Idempotency is in-memory by default:** Will not survive process restarts or scale across multiple containers/instances unless Redis or another shared store is configured.
+- **Idempotency is in-memory by default:** Uses local process memory (`TTLCache`), so entries do not survive restarts and are not shared across instances/containers without Redis (or similar shared store).
 - **Minimal HL7 segment coverage:** Only core segments (e.g., MSH, PID) are parsed and transformed; additional segments require extension.
 - **Self-signed TLS certificates are used for local HTTPS support:** In production environments, certificates issued by a trusted certificate authority should be used. 
 - **No message queue integration:** (e.g. Kafka) for downstream processing.
