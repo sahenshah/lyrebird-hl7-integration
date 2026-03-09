@@ -24,7 +24,7 @@ openssl req -x509 -nodes -days 365 \
 
 **2. Run stub API with TLS**
 ```sh
-# 1. Create a virtual environment (if you havent already)
+# 1. Create a virtual environment (if you haven't already)
 python3 -m venv venv
 
 # 2. Activate virtual environment
@@ -42,7 +42,7 @@ uvicorn app.stub_api:app \
 ```
 
 
-### Run Backend and listener
+### Run backend and listener
 **Option 1: Run backend and listener with Docker (Recommended)**
 ```sh
 # 1. Ensure Docker Desktop or Docker Engine and Docker Compose are installed and running
@@ -137,7 +137,7 @@ API endpoint used by the listener:
 
 Downstream API endpoint (stub):
 `POST https://localhost:9000/receive` - Local/Manual
-`POST DOWNSTREAM_API_URL: https://host.docker.internal:9000/receive` - Docker
+`POST https://host.docker.internal:9000/receive` - Docker
 
 ---
 
@@ -165,12 +165,28 @@ flowchart TD
 
     B -->|HL7 ACK / NACK| A
 ```
+```mermaid
+flowchart LR 
+
+HL7[External HL7 System]
+
+subgraph Docker Network
+  L[MLLP Listener]
+  A[FastAPI Backend]
+end
+
+D[Downstream API]
+
+HL7 -->|MLLP TCP| L
+L -->|HTTP| A
+A -->|HTTPS| D
+```
 
 **Flow Summary**
 1. TCP listener accepts connection and receives MLLP-framed HL7 messages. 
 2. Messages are deframed and parsed with hl7apy. 
 3. Parsed messages are transformed into JSON. 
-4. JSON payload is POSTed to the FastAPI REST API over HTTP. (POST http://localhost:8000/api/v1/messages) 
+4. JSON payload is POSTed to the FastAPI REST API over HTTP. 
 5. Backend forwards payload to sample HTTPS downstream stub API.
 6. Listener returns:
     - AA → Application Accept (success)
@@ -181,9 +197,9 @@ flowchart TD
 ## Features
 
 - **Dockerized Deployment:** Easily run the app and all dependencies in containers.
-- **HL7 Publishing:** HL& publisher with Single Message Mode and Scheduled Publishing Mode with Custom Retry Configuration and audit trail.
+- **HL7 Publishing:** HL7 publisher with Single Message Mode and Scheduled Publishing Mode with Custom Retry Configuration and audit trail.
 - **HL7 Listener:** TCP/MLLP server, supports multiple clients via threading. 
-- **HL7 Parsing:** Uses [hl7apy](https://github.com/crs4/hl7apy) for  HL7 v2.x parsing.
+- **HL7 Parsing:** Uses [hl7apy](https://github.com/crs4/hl7apy) for HL7 v2.x parsing.
 - **MLLP Framing:** Handles partial/multiple messages per TCP packet. 
 - **Robust MLLP Handling:** Supports partial TCP packets, multiple messages per packet, and framing validation.
 - **JSON Transformation:** Modular HL7 → JSON transformer.
@@ -192,7 +208,7 @@ flowchart TD
 - **Idempotency Guard:** Thread-safe in-memory cache to prevent duplicate processing. 
 - **Structured Logging:** Logs key metadata (timestamps, message_type, control_id, patient_id).
 - **Error Handling:** Returns appropriate HL7 ACK/NACK responses.
-- **Reliable API Forwarding:** Listener includes exponential backoff retries for downstream API calls, configurable retry limits, and comprehensive audit logging for message traceability.
+- **Reliable API Forwarding:** Listener includes exponential backoff retries for backend API calls, configurable retry limits, and comprehensive audit logging for message traceability.
 
 
 ### Key Publisher Features
@@ -229,10 +245,10 @@ lyrebird-hl7-integration/
 
 ## Requirements
 
-- Python 3.8+
+- Python 3.10+
 - [Docker Compose](https://docs.docker.com/compose/) must be installed.
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) or Docker Engine must be running.
-- - All Python dependencies are listed in [requirements.txt](requirements.txt) and installed automatically by Docker or with `pip install -r requirements.txt`.
+- All Python dependencies are listed in [requirements.txt](requirements.txt) and installed automatically by Docker or with `pip install -r requirements.txt`.
 
 Install dependencies:
 
@@ -242,221 +258,6 @@ pip install -r requirements.txt
 
 ---
 
-## Usage
-
-### Run the downstream stub_api over HTTPS
-
-Generate certs for REST API stub
-```sh
-openssl req -x509 -nodes -days 365 \
-  -newkey rsa:2048 \
-  -keyout certs/stub.key \
-  -out certs/stub.crt \
-  -config certs/openssl-stub.cnf
-```
-
-Run stub API with TLS
-```sh
-uvicorn stub_api:app \
-  --host 0.0.0.0 \
-  --port 9000 \
-  --ssl-keyfile certs/stub.key \
-  --ssl-certfile certs/stub.crt
-```
-
-Configure backend to call stub API Set in .env
-```dotenv
-DOWNSTREAM_API_URL=https://localhost:9000/receive
-DOWNSTREAM_CA_BUNDLE=~/lyrebird-hl7-integration/certs/stub.crt
-```
-
-### OPTION A: Running Listener and FastAPI with Docker
-You can run the entire app stack using Docker and Docker Compose.
-
-### 1. Build and Start the Services
-
-```sh
-docker-compose up --build
-```
-
-This will:
-- Build the backend image.
-- Start the backend service, exposing the configured port (default: 8000).
-
-### 2. Environment Variables
-
-- The app uses a `.env` file for configuration.
-- Docker Compose automatically loads environment variables from `.env` using the `env_file` directive.
-
-### 3. Port Mapping
-
-- By default, the backend runs on port 8000 inside the container and is mapped to port 8000 on your host.
-- You can change the external port in `docker-compose.yml` if needed:
-  ```yaml
-  ports:
-    - "8000:8000"
-  ```
-### 4. Send HL7 Messages
-
-Activate virtual environment
-```sh
-source venv/bin/activate 
-```
-
-```sh
-# Send single message
-python3 -m app.sender --file examples/sample_adt_a01.hl7
-
-# Publish every 60 seconds, 10 times 
-python3 -m app.sender --schedule 60 --count 10
-
-# Publish indefinitely (Ctrl+C to stop)
-python3 -m app.sender --schedule 30
-
-# Publish with custom retry configuration
-python3 -m app.sender \
-  --file examples/sample_adt_a01.hl7 \
-  --host localhost \
-  --port 2575 \
-  --retries 5 \
-  --delay 2.0 \
-  --timeout 15
-```
-
-Expected sender output:
-```sh
-Sending message from examples/sample_adt_a01.hl7...
-Received ACK message:
-MSH|^~\&|ReceivingApp|ReceivingFacility|SendingApp|SendingFacility|20260306195938||ACK|80fc6f82-af14-414c-8eb8-1f5b2345e147|P|2.3
-MSA|AA|123456
-```
-
-### OPTION B: Running Listener and FastAPI Manually
-
-### 1. Start the FastAPI Backend
-
-Create a virtual environment (if you havent already)
-```sh
-python3 -m venv venv
-```
-
-Activate virtual environment
-```sh
-source venv/bin/activate 
-```
-
-Install app dependencies in venv:
-```sh
-pip install -r requirements.txt  
-```
-
-Start the FastAPI Backend
-```sh
-uvicorn app.api:app --reload
-```
-Default: http://localhost:8000
-
-or Run API over HTTPS using a self-signed certificate.
-```sh
-uvicorn app.api:app \
-  --host localhost \
-  --port 8000 \
-  --ssl-keyfile key.pem \
-  --ssl-certfile cert.pem
-```
-
-or for valid JSON output. 
-```sh
-uvicorn app.api:app \
-  --host localhost \
-  --port 8000 \
-  --ssl-keyfile key.pem \
-  --ssl-certfile cert.pem \
-  --log-config logging_config.json
-```
-
-
-### 2. Health Check 
-
-To verify the API is running and ready for monitoring, use:
-
-```sh
-curl https://localhost:8000/health --insecure
-```
-from a separate terminal. 
-
-Expected response:
-```json
-{"status":"ok"}
-```
-
-
-### 3. Start HL7 Listener
-
-Activate virtual environment
-```sh
-source venv/bin/activate 
-```
-
-```sh
-python3 -m app.listener
-```
-
-Expected output:
-```
-{"asctime": "2026-03-06 17:27:58,889", "levelname": "INFO", "name": "hl7_listener", "message": "Listening on localhost:2575", "message_control_id": "", "patient_id": "", "message_type": "", "source_addr": ""}
-```
-
-### 5. Send HL7 Messages
-
-Activate virtual environment
-```sh
-source venv/bin/activate 
-```
-
-```sh
-python3 -m app.sender
-```
-
-Expected sender output:
-```sh
-Received ACK message:
-MSH|^~\&|ReceivingApp|ReceivingFacility|SendingApp|SendingFacility|20260304213451||ACK|edf37cf0-f8e8-44ff-a416-bb07f517f315|P|2.3
-MSA|AA|123456
-```
-
----
-
-### Example HL7 Message
-
-File `examples/sample_adt_a01.hl7`:
-
-```hl7
-MSH|^~\&|SendingApp|SendingFacility|ReceivingApp|ReceivingFacility|202603021200||ADT^A01|123456|P|2.3
-PID|1||MRN12345||Doe^John||19900101|M|||123 Main St^^City^ST^12345||555-1234
-```
-
----
-
-### Example JSON Output 
-
-Example transformed payload:
-
-```json
-{
-  "message_type": "ADT^A01",
-  "message_control_id": "123456",
-  "patient": {
-    "mrn": "MRN12345",
-    "first_name": "John",
-    "last_name": "Doe",
-    "dob": "19900101",
-    "sex": "M"
-  }
-}
-```
-
----
 
 ## HTTPS Support
 
@@ -466,123 +267,50 @@ Why `openssl-stub.cnf` is needed:
 Modern TLS clients validate the Subject Alternative Name (SAN), not just the certificate Common Name (CN).
 If `localhost` and `127.0.0.1` are missing from SAN, HTTPS verification will fail with hostname mismatch errors.
 
-Create `openssl-stub.cnf` in the /certs directory with the following content:
-
-```ini
-[req]
-default_bits = 2048
-prompt = no
-default_md = sha256
-distinguished_name = dn
-x509_extensions = v3_req
-
-[dn]
-CN = localhost
-
-[v3_req]
-subjectAltName = @alt_names
-
-[alt_names]
-DNS.1 = localhost
-IP.1 = 127.0.0.1
-```
-
-Generate certificate for stub API:
-```sh
-openssl req -x509 -nodes -days 365 \
-  -newkey rsa:2048 \
-  -keyout certs/stub.key \
-  -out certs/stub.crt \
-  -config certs/openssl-stub.cnf
-```
+See `openssl-stub.cnf` in the /certs directory content.
 
 ---
 
 ## Testing
 
-All tests are located in the `tests/` directory. 
+Run all active tests:
 
-1. Create a virtual environment (if you havent already)
-```sh
-python3 -m venv venv
-```
-
-2. Activate virtual environment
-```sh
-source venv/bin/activate 
-```
-
-3. Run the full suite:
 ```sh
 pytest -v
 ```
 
-4. Run edge-case tests only:
-```sh
-pytest -m edge
-```
+### Active Coverage
 
-5. Run TLS verification regression test only:
-```sh
-pytest -v tests/unit/test_listener.py -k cert_verification
-```
+- **Integration**
+  - API accepts valid payloads
+  - API rejects missing required MRN
+  - API accepts missing optional source
+  - Listener processes HL7 and returns ACK
+  - FastAPI/downstream JSON contract compatibility (`/receive`)
 
-Note: when running tests, ensure the API or listener is not already running on the same ports,
-otherwise tests may fail due to port conflicts. 
+- **Unit**
+  - ACK generation correctness
+  - Idempotency behavior
+  - Listener retry behavior
+  - MLLP frame/deframe and extraction
+  - HL7 transform + validation errors
 
-
-### Test Highlights
-
-- **API contract validation**
-  - Accepts valid transformed payloads.
-  - Rejects payloads missing required `patient.mrn`.
-  - Accepts payloads where `source` is omitted (optional field).
-
-- **Listener integration behavior**
-  - Listener processes a valid HL7 message and returns HL7 ACK (`MSA|AA|<control_id>`).
-  - End-to-end JSON contract is compatible between FastAPI and downstream `/receive`.
-
-- **ACK correctness**
-  - ACK creation swaps sender/receiver fields correctly.
-
-- **Idempotency behavior**
-  - Marks processed message IDs.
-  - Keeps message IDs isolated (no cross-ID contamination).
-
-- **Retry behavior**
-  - `send_to_api` retries transient failures and eventually succeeds.
-  - Retry attempts respect configured retry count (`MAX_RETRIES`).
-
-- **MLLP framing/parsing robustness**
-  - Frame/deframe roundtrip works.
-  - Multiple framed messages can be extracted correctly.
-  - Invalid framing raises expected errors.
-
-- **HL7 transformation and validation**
-  - Valid HL7 transforms to expected JSON.
-  - Missing PID is rejected.
-  - Missing message control ID is rejected.
-
-**Skipped tests:**
-Some tests for "large HL7 messages" and "too large HL7 messages" are **skipped** by default.  
-This is because the HL7 parser (`hl7apy`) enforces field length constraints before the application's message size check, making it impossible to test message size limits with standard HL7 segments.  
-These tests are included for documentation and completeness, but will show as `SKIPPED` in the test output:
+> Notes:
+> - Integration runs require listener (`2575`), backend (`8000`), downstream (`9000`).
+> - See `tests/` for exact test names.
 
 ---
 
-## Secure HL7 Parsing
+## Security & Input Hardening
 
-Incoming HL7 messages are treated as untrusted input and validated defensively before processing.
-
-The listener applies several safeguards:
-
-- **Strict HL7 validation:** Messages are parsed using hl7apy with STRICT validation to enforce HL7 structure and segment requirements.
-- **Message type whitelist:** Only supported message types (currently ADT^A01) are accepted.
-- **Required field validation:** Critical identifiers such as MSH-10 (message control ID) and PID-3 (patient ID) must be present.
-- **Message size limits:** Messages larger than the configured maximum (default: 1 MB) are rejected to prevent memory exhaustion.
-- **Graceful error handling:** Invalid or malformed messages are safely rejected and an AE (Application Error) ACK is returned without crashing the listener.
-
-These safeguards help ensure robust handling of malformed or malicious input while maintaining HL7-compliant responses.
+- **Strict framing checks:** Only properly framed MLLP messages are processed.
+- **Validation first:** Required HL7 fields (e.g., control ID, PID/MRN) are enforced before forwarding.
+- **Safe parsing:** Parsing/transform errors return AE and are logged with context.
+- **Payload limits:** Message/buffer size limits reduce risk from malformed or oversized input.
+- **Transport security boundary:**
+  - Listener → backend uses internal HTTP (trusted boundary).
+  - Backend → downstream uses HTTPS with CA bundle verification.
+- **Operational safeguards:** Retry with exponential backoff for transient failures; idempotency reduces duplicate side effects.
 
 ---
 
@@ -595,30 +323,8 @@ These safeguards help ensure robust handling of malformed or malicious input whi
 - **Extensibility:** Modular HL7 → JSON transformer for easy segment extension.
 - **Validation and defensive parsing:** HL7 input is treated as untrusted external data; therefore strict validation and defensive parsing are applied before transformation or downstream processing.
 - **Transport Security:** The REST API supports HTTPS using TLS certificates. For local development a self-signed certificate is used, while production deployments should use trusted certificates.
- - **Reliability vs. Latency Trade-off:** The listener uses exponential backoff retries for API forwarding rather than failing fast, priotizing message delivery guarantee over immediate response latency.
+ - **Reliability vs. Latency Trade-off:** The listener uses exponential backoff retries for API forwarding rather than failing fast, prioritizing message delivery guarantee over immediate response latency.
 
----
-
-## Security Considerations
-
-The listener includes several defensive mechanisms:
-- Message size limits to prevent DoS via oversized HL7 messages
-- Validation of required fields (control ID, patient ID)
-- Graceful handling of malformed HL7
-- Listener isolation to prevent crashes from invalid input
-- HTTPS communication for downstream API calls
-- Backend FastAPI is not internet reachable. All incoming messages must pass MLLP framing, HL7 validation and message parsing before hittig the backend
-The parser further enforces a STRICT validation level to reject malformed/non-conformant HL7, and raises an exception for:
-- Invalid segment structure/order
-- Missing required fields/components
-- Invalid datatype/format values
-- Values that violate HL7 constraints for the declared version
-
-In production deployments additional protections would include:
-- TLS-enabled MLLP (MLLPS)
-- Rate limiting
-- Centralized logging and alerting
-- HTTPS for internal listener -> backend hop (production hardening)
 ---
 
 ## Limitations
@@ -626,9 +332,12 @@ In production deployments additional protections would include:
 - **Idempotency is in-memory by default:** Will not survive process restarts or scale across multiple containers/instances unless Redis or another shared store is configured.
 - **Minimal HL7 segment coverage:** Only core segments (e.g., MSH, PID) are parsed and transformed; additional segments require extension.
 - **Self-signed TLS certificates are used for local HTTPS support:** In production environments, certificates issued by a trusted certificate authority should be used. 
-- **No message queue integration:** (e.g., Kafka, RabbitMQ) for downstream processing.
-- **Minimal HL7 validation or schema enforcement.**
+- **No message queue integration:** (e.g. Kafka) for downstream processing.
+- **Minimal HL7 validation or schema enforcement:** Validation exists for core fields; full schema-level validation is not implemented.
 - **Potential Single Point of Failure:** The listener is a critical piece of infrastructure that both receives HL7 messages and forwards them to the API. If the listener crashes, messages are lost.
+- **No messaging order guarantees:** Messages are processed concurrently and do not guarantee a strict ordering
+- **Message Durability:** Messages are currently processed by in-memory listener. if the process crashes before downstream API call is complete, message may be lost. Can be mitigated using message queues. 
+
 ---
 
 ## Future Improvements
@@ -636,27 +345,22 @@ In production deployments additional protections would include:
 - **Persistent/Distributed Idempotency:** Use Redis (with SETNX + TTL) or another shared store for production-grade idempotency across restarts and multiple instances.
 - **Full HL7 Segment Support:** Expand parsing and transformation to cover more HL7 segments and fields.
 - **TLS/SSL Support:** Add encrypted transport for internal listener -> FastAPI backend hop. 
-- **Message Queue Integration:** Add support for publishing messages to Kafka, RabbitMQ, or similar.
+- **Message Queue Integration:** for high-throughput environments (eg: Kafka). Helps with buffering, horizontal scaling and backpressure.
 - **Advanced Validation:** Implement stricter HL7 validation and schema enforcement.
-- **Enhanced Observability:** Integrate with centralized logging and monitoring solutions
+- **Enhanced Observability:** Integrate with centralized logging and monitoring solutionsl
 - **Horizontal Scalability:** Support for running multiple listener/API instances behind a load balancer.
-- **Dead Letter Queue:** Store messages that fail all retry attempts for manual review or automated reprocessing
+- **Dead Letter Queue:** Store messages that fail all retry attempts for manual review or automated reprocessing.
 - **Circuit Breaker:** Prevent repeated retry attempts when downstream API is confirmed offline
-
+- **Guarantee message ordering:** serialize messages by routing by sending facility, queue partitioning, sequence validation. 
 ---
 
 ## Error Handling
 
-- Invalid MLLP framing → AE returned
-- HL7 validation or parsing failure → AE returned
-- Unsupported message type → AE returned
-- Missing required fields → AE returned
-- API failure → AE returned
-- Successful processing → AA returned
-- Exponential Backoff: Prevents overwhelming the API during recovery
-- Configurable Retry Count: Balance between reliability and latency
-- Audit Trail: Every forwarding attempt is logged with:
-Errors are logged for observability.
+- Invalid MLLP framing → **AE**
+- HL7 parse/validation failure → **AE**
+- Downstream/API forwarding failure after retries → **AE**
+- Successful processing and forwarding → **AA**
+- All failures/successes are logged with message context for traceability.
 
 ---
 
