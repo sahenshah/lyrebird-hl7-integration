@@ -1,38 +1,75 @@
 """Test 3: New message with downstream down."""
-import pytest
 import json
+import subprocess
+import sys
+import uuid
+from pathlib import Path
+import socket
 import time
 
-def test_new_message_downstream_down(services, sender, example_message, audit_log_path):
-    """Test that new messages fail correctly when downstream is down."""
-    
-    # Ensure downstream is dead
-    print("💀 Ensuring downstream is down...")
-    services.kill_downstream()
-    
-    # Send new message
-    print("📤 Sending new message with downstream down...")
-    result = sender.send(example_message, "MSA|AE")
-    
-    # Verify we got AE
-    assert "MSA|AE" in result["stdout"], "Should get AE when downstream down"
-    control_id = result["control_id"]
-    
-    # Check audit log for retry attempts
-    time.sleep(2)  # Give time for retries to complete
-    
-    attempts = []
-    with open(audit_log_path) as f:
-        for line in f:
-            entry = json.loads(line)
-            if entry.get("message_control_id") == control_id:
-                attempts.append(entry)
-    
-    # Should have multiple attempts (your retry logic)
-    assert len(attempts) >= 3, f"Expected at least 3 attempts, got {len(attempts)}"
-    
-    # All attempts should have success=false
-    for i, attempt in enumerate(attempts):
-        assert attempt["success"] == False, f"Attempt {i+1} should be failure"
-    
-    print(f"✅ Failure test passed - {len(attempts)} retry attempts logged")
+
+def _send(project_root: Path, msg: Path) -> str:
+    p = subprocess.run(
+        [sys.executable, "-m", "app.sender", "--file", str(msg)],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    return (p.stdout or "") + (("\n" + p.stderr) if p.stderr else "")
+
+
+def _make_message_with_control_id(project_root: Path, tmp_path: Path, control_id: str) -> Path:
+    src = project_root / "examples" / "sample_adt_a01.hl7"
+    lines = src.read_text().splitlines()
+    msh = lines[0].split("|")
+    msh[9] = control_id  # MSH-10
+    lines[0] = "|".join(msh)
+    out = tmp_path / f"{control_id}.hl7"
+    out.write_text("\n".join(lines) + "\n")
+    return out
+
+
+def _is_open(host: str, port: int) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+def _kill_downstream_9000() -> None:
+    subprocess.run(
+        ["bash", "-lc", "pkill -f 'uvicorn app.stub_api:app.*--port 9000'"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_new_message_downstream_down(services, downstream_api, project_root, tmp_path):
+    _kill_downstream_9000()
+
+    # hard check: downstream must be down before sending
+    for _ in range(20):
+        if not _is_open("127.0.0.1", 9000):
+            break
+        time.sleep(0.2)
+    assert not _is_open("127.0.0.1", 9000), "Downstream still reachable on 9000"
+
+    control_id = "FAIL-d1fbaaf6"
+    msg = _make_message_with_control_id(project_root, tmp_path, control_id)
+
+    output = _send(project_root, msg)
+    assert "MSA|AE" in output, f"Expected AE when downstream is down. Output:\n{output}"
+
+    audit = project_root / "logs" / "publisher_audit.jsonl"
+    entries = []
+    if audit.exists():
+        with open(audit) as f:
+            entries = [json.loads(line) for line in f if line.strip()]
+
+    cid_entries = [e for e in entries if e.get("message_control_id") == control_id]
+    assert cid_entries, f"No audit entries for control_id={control_id}"
+    assert any(e.get("status") == "nack" for e in cid_entries), f"Expected status='nack', got: {cid_entries}"

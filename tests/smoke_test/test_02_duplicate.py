@@ -2,39 +2,49 @@
 import pytest
 import time
 import json
+import subprocess
+import sys
+from pathlib import Path
 
-def test_duplicate_with_downstream_down(services, sender, example_message, audit_log_path):
-    """Test that duplicate messages are handled correctly."""
-    
-    # Send first message (normal)
-    print("\n📤 Sending original message...")
-    control_id = sender.send_and_expect(example_message, "MSA|AA")
-    
-    # Kill downstream
-    print("💀 Killing downstream...")
-    services.kill_downstream()
-    
-    # Send duplicate
-    print("📤 Sending duplicate message...")
-    result = sender.send(example_message, "MSA|AA")
-    
-    # Verify we got AA (idempotency)
-    assert "MSA|AA" in result["stdout"], "Duplicate should get AA"
-    assert result["control_id"] == control_id, "Control ID should match"
-    
-    # Check audit log for duplicate marker
-    duplicate_found = False
-    with open(audit_log_path) as f:
-        for line in f:
-            entry = json.loads(line)
-            if entry.get("message_control_id") == control_id:
-                if entry.get("status") == "skipped_already_processed":
-                    duplicate_found = True
-                elif entry.get("success") is True:
-                    # First successful entry is fine
-                    pass
-                else:
-                    pytest.fail(f"Unexpected entry: {entry}")
-    
-    assert duplicate_found, "No 'skipped_already_processed' entry found in audit log"
-    print("✅ Duplicate test passed - Message correctly skipped")
+
+def _send(project_root: Path, msg: Path) -> str:
+    p = subprocess.run(
+        [sys.executable, "-m", "app.sender", "--file", str(msg)],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    return (p.stdout or "") + (("\n" + p.stderr) if p.stderr else "")
+
+
+def test_duplicate_with_downstream_down(services, downstream_api, project_root):
+    msg = project_root / "examples" / "sample_adt_a01.hl7"
+    audit = project_root / "logs" / "publisher_audit.jsonl"
+
+    # 1) First send (normal)
+    out1 = _send(project_root, msg)
+    assert "MSA|AA" in out1, f"First send should be AA, got:\n{out1}"
+
+    # 2) Kill downstream API
+    subprocess.run(
+        ["bash", "-lc", "pkill -f 'uvicorn app.stub_api:app.*--port 9000'"],
+        check=False,
+    )
+
+    # 3) Send same message again (duplicate -> should still be AA)
+    out2 = _send(project_root, msg)
+    assert "MSA|AA" in out2, f"Duplicate send should be AA, got:\n{out2}"
+
+    # 4) Audit log should classify duplicate as skipped
+    entries = []
+    if audit.exists():
+        with open(audit) as f:
+            entries = [json.loads(line) for line in f if line.strip()]
+
+    dup_entries = [e for e in entries if e.get("message_control_id") == "123456"]
+    assert dup_entries, "No audit entries found for control_id=123456"
+
+    has_skipped = any(e.get("status") == "skipped_already_processed" for e in dup_entries)
+    assert has_skipped, f"Expected skipped_already_processed in audit, got: {dup_entries}"

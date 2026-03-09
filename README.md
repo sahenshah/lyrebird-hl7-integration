@@ -49,17 +49,6 @@ uvicorn app.stub_api:app \
 # 2. Starts both the HL7 Listener (on port 2575) and the FastAPI Backend (on port 8000) in separate containers. 
 docker compose up --build
 ```
-In a separate terminal:
-```sh
-# 3. Create a virtual environment (if you havent already)
-python3 -m venv venv
-
-# 4. Activate virtual environment
-source venv/bin/activate 
-
-# 5. Install requirements (in venv)
-pip install -r requirements.txt
-```
 
 **Option 2: Run backend and listener Manually (Local Python)**
 ```sh
@@ -301,6 +290,14 @@ pytest -v
   - Listener retry behavior
   - MLLP frame/deframe and extraction
   - HL7 transform + validation errors
+
+-**Smoke Test Suite**
+- The smoke tests validate the end-to-end HL7 flow with minimal setup checks.
+- **test_01_normal**: verifies core services are reachable and basic send path works.
+- **test_02_duplicate**: sends the same message twice; duplicate should be ACKed and logged as skipped.
+- **test_03_failure**: with downstream API stopped, a new message should return `AE` and be logged as `nack`.
+- **test_04_recovery**: send while downstream is down (`AE`), then resend after recovery (`AA`).
+- `logs/publisher_audit.jsonl` is cleared per test for deterministic assertions.
 
 > Notes:
 > - Integration runs require listener (`2575`), backend (`8000`), downstream (`9000`).
