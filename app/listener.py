@@ -103,17 +103,11 @@ def send_to_api(payload):
     )
 
 def process_hl7_message(hl7_string, conn, addr):
-    """
-    Processes a single HL7 message string:
-    - Parses the HL7 message.
-    - Transforms it to JSON.
-    - Uses idempotency guard to avoid duplicate processing.
-    - Sends the JSON to the API.
-    - Builds and sends an ACK (positive or error) back to the sender.
-    """
     start = time.time()
     source_addr = f"{addr[0]}:{addr[1]}"
-    log = get_logger_with_context()
+    log = get_logger_with_context(source_addr=source_addr)
+    ack = "MSH|^~\\&|||||||ACK||P|2.3\rMSA|AE|\r"
+
     try:
         # Normalize segment separators before parsing
         hl7_string = normalize_hl7_segments(hl7_string)
@@ -126,7 +120,6 @@ def process_hl7_message(hl7_string, conn, addr):
         message_control_id = parsed.MSH.MSH_10.to_er7() if hasattr(parsed.MSH, "MSH_10") else "unknown"
         patient_id = parsed.PID.PID_3.to_er7() if hasattr(parsed, "PID") and hasattr(parsed.PID, "PID_3") else "unknown"
         message_type = parsed.MSH.MSH_9.to_er7() if hasattr(parsed.MSH, "MSH_9") else "unknown"
-        log = get_logger_with_context(message_control_id=message_control_id, patient_id=patient_id, message_type=message_type, source_addr=source_addr)
 
         # --- Whitelist message types ---
         allowed_types = {"ADT^A01"}
@@ -138,48 +131,29 @@ def process_hl7_message(hl7_string, conn, addr):
         if not control_id:
             raise ValueError("Missing message control ID")
 
-        mrn = parsed.PID.PID_3.value if hasattr(parsed, "PID") and hasattr(parsed.PID, "PID_3") else None
-        if not mrn:
-            raise ValueError("Missing patient ID")
-
-        log.info(f"Processing message from {addr}")
-
         hl7_json = transform_hl7_to_json(parsed)
-        control_id = hl7_json["message_control_id"]
 
-        if not guard.mark_if_new(message_control_id):
-            # duplicate -> skip processing / return ACK path as designed
-            return
-
-        try:
-            send_to_api(hl7_json)
-            guard.mark_processed(message_control_id)
-            log.info(f"[{message_control_id}] Message successfully processed, returning ACK")
-            log.info(
-                "Message successfully processed",
-                extra={
-                    "control_id": hl7_json.get("message_control_id"),
-                    "message_type": hl7_json.get("message_type"),
-                    "patient_id": hl7_json.get("patient", {}).get("mrn")
-                }
-            )
+        if not guard.mark_if_new(control_id):
+            log.info(f"[{control_id}] Duplicate message detected; returning ACK without reprocessing")
             ack = build_ack(parsed, ack_code="AA")
-        except Exception as e:
-            log.error(f"[{message_control_id}] Processing error: {e}")
-            ack = build_ack(parsed, ack_code="AE")
+        else:
+            try:
+                send_to_api(hl7_json)
+                ack = build_ack(parsed, ack_code="AA")
+            except Exception as e:
+                log.error(f"[{control_id}] Downstream processing failed after retries: {e}")
+                guard.unmark(control_id)
+                ack = build_ack(parsed, ack_code="AE")
 
     except Exception as e:
-        log.error(f"Processing error: {e}")
-        try:
-            parsed = parse_message(hl7_string, validation_level=VALIDATION_LEVEL.STRICT)
-            ack = build_ack(parsed, "AE")
-        except Exception as parse_e:
-            log.error(f"parse_message failed in exception handler: {parse_e}")
-            ack = "MSH|^~\\&|||||||ACK||P|2.3\rMSA|AE|\r"
+        log.error(f"Failed to process HL7 message: {e}")
+        # keep fallback AE ack
+
     finally:
+        conn.sendall(frame_message(ack))
         duration_ms = int((time.time() - start) * 1000)
         log.info(f"Processed in {duration_ms}ms")
-        conn.sendall(frame_message(ack))
+        # DO NOT close conn here
 
 def handle_connection(conn, addr):
     """

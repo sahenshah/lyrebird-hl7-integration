@@ -32,6 +32,10 @@ class IdempotencyGuard:
             self._processed[control_id] = True
             return True
 
+    def unmark(self, control_id: str) -> None:
+        with self._lock:
+            self._processed.pop(control_id, None)
+
     def clear(self) -> None:
         with self._lock:
             self._processed.clear()

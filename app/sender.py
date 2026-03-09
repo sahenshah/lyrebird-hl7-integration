@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 import json
-from app.core.mllp import frame_message, deframe_message
+from app.core.mllp import frame_message, deframe_message, MLLP_START_BYTE, MLLP_END_BYTES
 from app.core.config import (
     HL7_HOST, 
     HL7_PORT, 
@@ -50,8 +50,11 @@ class HL7Publisher:
         self.retry_attempts = retry_attempts
         self.retry_delay = retry_delay
         self.connection_timeout = connection_timeout
+        self.buffer_size = MAX_BUFFER_SIZE
+        self.max_message_size = MAX_MESSAGE_SIZE
         self.audit_log: list[Dict[str, Any]] = []
         self.last_ack_message: Optional[str] = None
+        self._seen_successful_control_ids: set[str] = set()
 
         if audit_log_path:
             self.audit_log_path = Path(audit_log_path)
@@ -59,7 +62,27 @@ class HL7Publisher:
             self.audit_log_path = Path(__file__).parent.parent / "logs" / "publisher_audit.jsonl"
 
         self.audit_log_path.parent.mkdir(parents=True, exist_ok=True)
-        
+        self._load_seen_successful_control_ids()  # <- add
+
+    def _load_seen_successful_control_ids(self) -> None:
+        if not self.audit_log_path.exists():
+            return
+        try:
+            with open(self.audit_log_path, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    entry = json.loads(line)
+                    cid = entry.get("message_control_id")
+                    status = entry.get("status")
+                    success = entry.get("success")
+                    if cid and (status in {"success", "skipped_already_processed"} or success is True):
+                        self._seen_successful_control_ids.add(cid)
+        except Exception:
+            # keep sender resilient; ignore audit parse errors
+            pass
+
     def _connect_and_send(self, framed_message: bytes) -> bytes:
         """Establish connection and send message (used by retry wrapper)."""
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -67,17 +90,11 @@ class HL7Publisher:
             sock.connect((self.host, self.port))
             sock.sendall(framed_message)
             
-            # Receive response
-            response = b""
-            while True:
-                chunk = sock.recv(4096)
-                if not chunk:
-                    break
-                response += chunk
-                # Check if we have a complete MLLP frame
-                if response.endswith(b'\x1c\x0d'):
-                    break
-                    
+            response = _recv_full_mllp_frame(
+                sock,
+                buffer_size=self.buffer_size,
+                max_bytes=self.max_message_size,
+            )
             return response
     
     def send_message(self, message: str, message_control_id: Optional[str] = None) -> bool:
@@ -103,6 +120,10 @@ class HL7Publisher:
                         message_control_id = parts[9]
                     break
         
+        was_seen_before_send = bool(message_control_id) and (
+            message_control_id in self._seen_successful_control_ids
+        )
+
         attempt = 0
         start_time = time.time()
         
@@ -118,40 +139,42 @@ class HL7Publisher:
                            })
                 
                 response = self._connect_and_send(framed)
-                
-                # Deframe and validate ACK
+
                 ack_message = deframe_message(response)
                 self.last_ack_message = ack_message
-                
-                # Check if ACK is AA (success) vs AE (error)
-                is_success = "MSA|AA" in ack_message
-                
-                # Audit log entry
+
+                ack_upper = ack_message.upper()
+                is_success = "MSA|AA" in ack_upper
+                is_duplicate_skip = is_success and was_seen_before_send
+
+                status = (
+                    "skipped_already_processed"
+                    if is_duplicate_skip
+                    else ("success" if is_success else "nack")
+                )
+
                 audit_entry = {
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "message_control_id": message_control_id,
                     "attempt": attempt,
                     "success": is_success,
+                    "status": status,
                     "response_time_ms": round((time.time() - start_time) * 1000, 2),
                     "ack_message": ack_message[:100] + "..." if len(ack_message) > 100 else ack_message
                 }
                 self.audit_log.append(audit_entry)
-                
+
+                if is_success and message_control_id:
+                    self._seen_successful_control_ids.add(message_control_id)
+
                 if is_success:
-                    logger.info(f"Message successfully published", 
-                               extra={
-                                   "message_control_id": message_control_id,
-                                   "attempt": attempt,
-                                   "response_time_ms": audit_entry["response_time_ms"]
-                               })
                     return True
                 else:
-                    logger.warning(f"Received NACK (AE) from receiver",
-                                  extra={
-                                      "message_control_id": message_control_id,
-                                      "attempt": attempt
-                                  })
-                    
+                    logger.warning(
+                        "Received NACK (AE) from receiver",
+                        extra={"message_control_id": message_control_id, "attempt": attempt}
+                    )
+
             except (socket.timeout, ConnectionRefusedError, socket.error) as e:
                 logger.warning(f"Connection failed (attempt {attempt})", 
                               extra={
@@ -244,6 +267,26 @@ class HL7Publisher:
             logger.info(f"Audit log appended to {save_path}")
         except Exception as e:
             logger.error(f"Failed to append audit log: {e}")
+
+
+def _recv_full_mllp_frame(sock, buffer_size: int = 4096, max_bytes: int = 1024 * 1024) -> bytes:
+    data = b""
+    while True:
+        chunk = sock.recv(buffer_size)
+        if not chunk:
+            raise ConnectionError("Connection closed before full MLLP ACK was received")
+        data += chunk
+
+        if len(data) > max_bytes:
+            raise ValueError("Received ACK exceeds maximum allowed size")
+
+        start = data.find(MLLP_START_BYTE)
+        if start == -1:
+            continue
+
+        end = data.find(MLLP_END_BYTES, start + 1)
+        if end != -1:
+            return data[start:end + len(MLLP_END_BYTES)]
 
 
 def main():
