@@ -236,7 +236,10 @@ lyrebird-hl7-integration/
 │   └── sender.py          # HL7 sender client
 ├── examples/
 │   └── sample_adt_a01.hl7 # Example HL7 message
-├── tests/                 # Unit and integration tests
+├── tests/                 
+│   └── unit/              # Unit Tests 
+│   └── integration/       # Integration Tests
+│   └── edge_cases/        # Edge case tests
 ├── .env                   # Environment configuration
 └── README.md
 ```
