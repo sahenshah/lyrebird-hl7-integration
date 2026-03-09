@@ -137,7 +137,7 @@ Downstream API endpoint (stub):
 
 ---
 
-## Project Overview
+ ## Project Overview
 **Goal**: Demonstrate core healthcare integration concepts:
 - HL7 v2 message handling
 - MLLP framing over TCP
@@ -603,7 +603,7 @@ The listener includes several defensive mechanisms:
 - Graceful handling of malformed HL7
 - Listener isolation to prevent crashes from invalid input
 - HTTPS communication for downstream API calls
-
+- Backend FastAPI is not internet reachable. All incoming messages must pass MLLP framing, HL7 validation and message parsing before hittig the backend
 The parser further enforces a STRICT validation level to reject malformed/non-conformant HL7, and raises an exception for:
 - Invalid segment structure/order
 - Missing required fields/components
