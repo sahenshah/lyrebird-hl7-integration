@@ -130,6 +130,19 @@ Downstream API endpoint (stub):
 
 ---
 
+ ## Smoke Test
+-**Smoke Test Suite**
+- This test suite requires docker to be installed
+- The smoke tests validate the end-to-end HL7 flow with minimal setup checks.
+- Ensure other backend services have been killed
+
+From root, run:
+```sh
+pytest -v tests/smoke_test/
+```
+
+---
+
  ## Project Overview
 **Goal**: Demonstrate core healthcare integration concepts:
 - HL7 v2 message handling
