@@ -285,6 +285,17 @@ pip install -r requirements.txt
 
 This project keeps the internal listener -> backend hop on HTTP, and uses HTTPS for the downstream sample API.
 
+Future extensibility (listener -> backend HTTPS):
+- Set `API_URL` to an `https://...` backend endpoint.
+- Set `API_CA_BUNDLE` to the CA/server certificate path trusted by the listener.
+- Run FastAPI with TLS (`uvicorn ... --ssl-keyfile ... --ssl-certfile ...`).
+- Ensure backend certificate SAN matches the hostname used in `API_URL`.
+
+Generate a backend cert/key (self-signed, local use):
+```sh
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout certs/backend.key -out certs/backend.crt -config certs/san.cnf
+```
+
 Why `openssl-stub.cnf` is needed:
 Modern TLS clients validate the Subject Alternative Name (SAN), not just the certificate Common Name (CN).
 If `localhost` and `127.0.0.1` are missing from SAN, HTTPS verification will fail with hostname mismatch errors.
@@ -318,13 +329,13 @@ pytest -v
   - HL7 transform + validation errors
 
 - **Smoke Test Suite**
-- This test suite requires docker to be installed
-- The smoke tests validate the end-to-end HL7 flow with minimal setup checks.
-- **test_01_normal**: verifies core services are reachable and basic send path works.
-- **test_02_duplicate**: sends the same message twice; duplicate should be ACKed and logged as skipped.
-- **test_03_failure**: with downstream API stopped, a new message should return `AE` and be logged as `nack`.
-- **test_04_recovery**: send while downstream is down (`AE`), then resend after recovery (`AA`).
-- `logs/publisher_audit.jsonl` is cleared per test for deterministic assertions.
+  - This test suite requires docker to be installed
+  - The smoke tests validate the end-to-end HL7 flow with minimal setup checks.
+  - **test_01_normal**: verifies core services are reachable and basic send path works.
+  - **test_02_duplicate**: sends the same message twice; duplicate should be ACKed and logged as skipped.
+  - **test_03_failure**: with downstream API stopped, a new message should return `AE` and be logged as `nack`.
+  - **test_04_recovery**: send while downstream is down (`AE`), then resend after recovery (`AA`).
+  - `logs/publisher_audit.jsonl` is cleared per test for deterministic assertions.
 
 > Notes:
 > - Integration runs require listener (`2575`), backend (`8000`), downstream (`9000`).
