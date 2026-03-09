@@ -38,7 +38,8 @@ DOWNSTREAM_API_URL=https://localhost:9000/receive
 DOWNSTREAM_CA_BUNDLE=~/lyrebird-hl7-integration/certs/stub.crt
 ```
 
-### Option 1: Run backend and listener with Docker (Recommended)
+### Run Backend and listener
+**Option 1: Run backend and listener with Docker (Recommended)**
 ```sh
 # 0. ensure API_URL and DOWNSTREAM_API_URL in .env is set to:
 API_URL=http://backend:8000/api/v1/messages
@@ -60,7 +61,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Option 2: Run backend and listener Manually (Local Python)
+**Option 2: Run backend and listener Manually (Local Python)**
 ```sh
 # 0. ensure API_URL and DOWNSTREAM_API_URL in .env is set to:
 API_URL=http://localhost:8000/api/v1/messages
@@ -86,7 +87,7 @@ source venv/bin/activate
 python3 -m app.listener
 ```
 
-## Send HL7 message(s) 
+### Send HL7 message(s) 
 ```sh
 # In new terminal
 source venv/bin/activate 
