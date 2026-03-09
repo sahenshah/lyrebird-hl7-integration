@@ -588,7 +588,7 @@ These safeguards help ensure robust handling of malformed or malicious input whi
 
 ## Design Decisions
 
-- **Concurrency:** Threaded TCP listener for simultaneous HL7 clients.
+- **Concurrency:** Threaded TCP listener for simultaneous MLLP client connections and async FastAPI handler using non-blocking downstream HTTP calls (`httpx.AsyncClient`).
 - **Idempotency:** In-memory cache; Redis supported for distributed deployments.
 - **Streaming & Buffering:** Handles partial/multiple messages per TCP packet.
 - **Structured Logging:** Logs timestamps, control_id, message_type, patient_id.
