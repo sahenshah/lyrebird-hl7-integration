@@ -292,7 +292,7 @@ pytest -v
   - HL7 transform + validation errors
 
 -**Smoke Test Suite**
-- This test suite required docker to be installed
+- This test suite requires docker to be installed
 - The smoke tests validate the end-to-end HL7 flow with minimal setup checks.
 - **test_01_normal**: verifies core services are reachable and basic send path works.
 - **test_02_duplicate**: sends the same message twice; duplicate should be ACKed and logged as skipped.
