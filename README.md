@@ -119,6 +119,10 @@ Expected stub API output:
 ```sh
 Received downstream payload: {'message_type': 'ADT^A01', 'message_control_id': '123456', 'patient': {'mrn': 'MRN12345', 'first_name': 'John', 'last_name': 'Doe', 'dob': '19900101', 'sex': 'M'}, 'source': {'sending_app': 'SendingApp', 'sending_facility': 'SendingFacility'}}
 ```
+Expected log entry in /logs/publisher_audit.jsonl
+```jsonl
+{"timestamp": "2026-03-09T10:28:38.160581+00:00", "message_control_id": "123456", "attempt": 1, "success": true, "response_time_ms": 63.57, "ack_message": "MSH|^~\\&|ReceivingApp|ReceivingFacility|SendingApp|SendingFacility|20260309102838||ACK|611718e2-26aa..."}
+```
 
 Check API health:
 ```sh
