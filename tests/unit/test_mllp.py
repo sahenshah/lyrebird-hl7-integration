@@ -6,6 +6,7 @@ This test suite proves:
 - No leftover buffer corruption after extraction
 """
 
+import pytest
 from app.core.mllp import frame_message, deframe_message, extract_messages_from_buffer
 
 
@@ -25,3 +26,11 @@ def test_extract_multiple_messages():
 
     assert len(messages) == 2
     assert remainder == b""
+
+
+def test_deframe_invalid_framing_raises():
+    # Missing MLLP start/end bytes
+    invalid = b"MSH|^~\\&|Unframed\rPID|1||123\r"
+
+    with pytest.raises(ValueError, match="Invalid MLLP framing"):
+        deframe_message(invalid)

@@ -7,6 +7,10 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./certs:/certs:ro
+    environment:
+      API_URL: http://backend:8000/api/v1/messages
+      DOWNSTREAM_API_URL: https://host.docker.internal:9000/receive
+      DOWNSTREAM_CA_BUNDLE: /certs/stub.crt
     command: uvicorn app.api:app --host ${API_BIND_HOST:-0.0.0.0} --port ${API_BIND_PORT:-8000} --log-config logging_config.json
     restart: unless-stopped
 

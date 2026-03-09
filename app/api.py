@@ -45,13 +45,21 @@ async def receive_message(payload: MessagePayload):
     if not payload.patient.mrn:
         raise HTTPException(status_code=400, detail="Missing patient MRN")
 
-    async with httpx.AsyncClient(verify=DOWNSTREAM_CA_BUNDLE, timeout=10.0) as client:
-        try:
+    verify_tls: str | bool = True
+    if DOWNSTREAM_CA_BUNDLE:
+        if os.path.exists(DOWNSTREAM_CA_BUNDLE):
+            verify_tls = DOWNSTREAM_CA_BUNDLE
+        else:
+            logger.error(f"DOWNSTREAM_CA_BUNDLE not found: {DOWNSTREAM_CA_BUNDLE}")
+            raise HTTPException(status_code=502, detail="Downstream TLS configuration error")
+
+    try:
+        async with httpx.AsyncClient(verify=verify_tls, timeout=10.0) as client:
             response = await client.post(DOWNSTREAM_API_URL, json=payload.model_dump())
             response.raise_for_status()
-        except Exception as e:
-            logger.error(f"Failed to post to downstream API: {e}")
-            raise HTTPException(status_code=502, detail="Downstream API call failed")
+    except Exception as e:
+        logger.error(f"Failed to post to downstream API: {e}")
+        raise HTTPException(status_code=502, detail="Downstream API call failed")
 
     return {"status": "received"}
 

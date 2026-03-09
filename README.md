@@ -24,27 +24,27 @@ openssl req -x509 -nodes -days 365 \
 
 **2. Run stub API with TLS**
 ```sh
-uvicorn stub_api:app \
+# 1. Create a virtual environment (if you havent already)
+python3 -m venv venv
+
+# 2. Activate virtual environment
+source venv/bin/activate 
+
+# 3. Install requirements (in venv)
+pip install -r requirements.txt
+
+# 4. Run stub API with TLS 
+uvicorn app.stub_api:app \
   --host 0.0.0.0 \
   --port 9000 \
   --ssl-keyfile certs/stub.key \
   --ssl-certfile certs/stub.crt
 ```
 
-**3. Configure backend to call stub API**
-Set in `.env`:
-```dotenv
-DOWNSTREAM_API_URL=https://localhost:9000/receive
-DOWNSTREAM_CA_BUNDLE=~/lyrebird-hl7-integration/certs/stub.crt
-```
 
 ### Run Backend and listener
 **Option 1: Run backend and listener with Docker (Recommended)**
 ```sh
-# 0. ensure API_URL and DOWNSTREAM_API_URL in .env is set to:
-API_URL=http://backend:8000/api/v1/messages
-DOWNSTREAM_API_URL=https://host.docker.internal:9000/receive
-
 # 1. Ensure Docker Desktop or Docker Engine and Docker Compose are installed and running
 # 2. Starts both the HL7 Listener (on port 2575) and the FastAPI Backend (on port 8000) in separate containers. 
 docker compose up --build
@@ -63,10 +63,6 @@ pip install -r requirements.txt
 
 **Option 2: Run backend and listener Manually (Local Python)**
 ```sh
-# 0. ensure API_URL and DOWNSTREAM_API_URL in .env is set to:
-API_URL=http://localhost:8000/api/v1/messages
-DOWNSTREAM_API_URL=https://localhost:9000/receive
-
 # 1. Create a virtual environment (if you havent already)
 python3 -m venv venv
 
@@ -76,13 +72,13 @@ source venv/bin/activate
 # 3. Install dependencies (in venv)
 pip install -r requirements.txt
 
-# Start the FastAPI backend (HTTP)
+# 4. Start the FastAPI backend (HTTP)
 uvicorn app.api:app \
   --host 0.0.0.0 \
   --port 8000 \
   --log-config logging_config.json
 
-# Start HL7 listener (new terminal)
+# 5. Start HL7 listener (new terminal)
 source venv/bin/activate 
 python3 -m app.listener
 ```
@@ -131,10 +127,13 @@ curl http://localhost:8000/health
 ```
 
 API endpoint used by the listener:
-`POST http://localhost:8000/api/v1/messages`
+`POST http://localhost:8000/api/v1/messages` - Local/Manual
+`POST http://backend:8000/api/v1/messages` - Docker
+
 
 Downstream API endpoint (stub):
-`POST https://localhost:9000/receive`
+`POST https://localhost:9000/receive` - Local/Manual
+`POST DOWNSTREAM_API_URL: https://host.docker.internal:9000/receive` - Docker
 
 ---
 
@@ -528,13 +527,37 @@ Note: when running tests, ensure the API or listener is not already running on t
 otherwise tests may fail due to port conflicts. 
 
 
-Testing Highlights:
-- **MLLP framing/deframing**
-- **ACK/NACK correctness**
-- **HL7 → JSON transformation**
-- **Integration tests:** full roundtrip (sender → listener → API → ACK)
-- **Edge cases:** large messages, malformed HL7, multiple messages in a single TCP packet
-- **Concurrency & Idempotency:** multiple simultaneous clients, duplicate message handling
+### Test Highlights
+
+- **API contract validation**
+  - Accepts valid transformed payloads.
+  - Rejects payloads missing required `patient.mrn`.
+  - Accepts payloads where `source` is omitted (optional field).
+
+- **Listener integration behavior**
+  - Listener processes a valid HL7 message and returns HL7 ACK (`MSA|AA|<control_id>`).
+  - End-to-end JSON contract is compatible between FastAPI and downstream `/receive`.
+
+- **ACK correctness**
+  - ACK creation swaps sender/receiver fields correctly.
+
+- **Idempotency behavior**
+  - Marks processed message IDs.
+  - Keeps message IDs isolated (no cross-ID contamination).
+
+- **Retry behavior**
+  - `send_to_api` retries transient failures and eventually succeeds.
+  - Retry attempts respect configured retry count (`MAX_RETRIES`).
+
+- **MLLP framing/parsing robustness**
+  - Frame/deframe roundtrip works.
+  - Multiple framed messages can be extracted correctly.
+  - Invalid framing raises expected errors.
+
+- **HL7 transformation and validation**
+  - Valid HL7 transforms to expected JSON.
+  - Missing PID is rejected.
+  - Missing message control ID is rejected.
 
 **Skipped tests:**
 Some tests for "large HL7 messages" and "too large HL7 messages" are **skipped** by default.  

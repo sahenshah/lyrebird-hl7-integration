@@ -1,3 +1,9 @@
+"""Unit tests for IdempotencyGuard behavior.
+
+These tests verify that processed message IDs are recorded correctly
+and that processing state is isolated between different IDs.
+"""
+
 from app.core.idempotency import IdempotencyGuard
 
 

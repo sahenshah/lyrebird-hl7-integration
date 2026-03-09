@@ -248,8 +248,8 @@ class HL7Publisher:
 
 def main():
     parser = argparse.ArgumentParser(description="HL7 Message Publisher")
-    parser.add_argument("--file", "-f", type=Path, default="examples/sample_adt_a01.hl7",
-                       help="HL7 message file to publish")
+    parser.add_argument("--file", "-f", type=Path, required=True,
+                       help="HL7 message file to publish (required)")
     parser.add_argument("--host", default="localhost",
                        help="Listener host")
     parser.add_argument("--port", type=int, default=2575,
@@ -272,6 +272,9 @@ def main():
                        help="Enable INFO publisher logs")
     
     args = parser.parse_args()
+
+    if not args.file.exists() or not args.file.is_file():
+        parser.error(f"--file is required and must point to an existing file: {args.file}")
 
     if args.verbose:
         # Enable structured sender logs only when explicitly requested.
