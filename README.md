@@ -241,7 +241,33 @@ pip install -r requirements.txt
 
 ## Usage
 
-### OPTION A: Running with Docker
+### Run the downstream stub_api over HTTPS
+
+Generate certs for REST API stub
+```sh
+openssl req -x509 -nodes -days 365 \
+  -newkey rsa:2048 \
+  -keyout certs/stub.key \
+  -out certs/stub.crt \
+  -config certs/openssl-stub.cnf
+```
+
+Run stub API with TLS
+```sh
+uvicorn stub_api:app \
+  --host 0.0.0.0 \
+  --port 9000 \
+  --ssl-keyfile certs/stub.key \
+  --ssl-certfile certs/stub.crt
+```
+
+Configure backend to call stub API Set in .env
+```dotenv
+DOWNSTREAM_API_URL=https://localhost:9000/receive
+DOWNSTREAM_CA_BUNDLE=~/lyrebird-hl7-integration/certs/stub.crt
+```
+
+### OPTION A: Running Listener and FastAPI with Docker
 You can run the entire app stack using Docker and Docker Compose.
 
 ### 1. Build and Start the Services
@@ -302,7 +328,7 @@ MSH|^~\&|ReceivingApp|ReceivingFacility|SendingApp|SendingFacility|2026030619593
 MSA|AA|123456
 ```
 
-### OPTION B: Running Manually
+### OPTION B: Running Listener and FastAPI Manually
 
 ### 1. Start the FastAPI Backend
 
@@ -378,8 +404,7 @@ Expected output:
 {"asctime": "2026-03-06 17:27:58,889", "levelname": "INFO", "name": "hl7_listener", "message": "Listening on localhost:2575", "message_control_id": "", "patient_id": "", "message_type": "", "source_addr": ""}
 ```
 
-
-### 4. Send HL7 Messages
+### 5. Send HL7 Messages
 
 Activate virtual environment
 ```sh
