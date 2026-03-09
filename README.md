@@ -246,6 +246,7 @@ lyrebird-hl7-integration/
 │   └── unit/              # Unit Tests 
 │   └── integration/       # Integration Tests
 │   └── edge_cases/        # Edge case tests
+│   └── smoke_test/        # Smoke tests
 ├── .env                   # Environment configuration
 └── README.md
 ```
