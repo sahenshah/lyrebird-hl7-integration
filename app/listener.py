@@ -172,7 +172,7 @@ def process_hl7_message(hl7_string, conn, addr):
         # --- TRANSFORM HL7 -> JSON---
         hl7_json = transform_hl7_to_json(parsed)
 
-        # --- Idempotency Check---
+        # --- Idempotency Guard---
         if not guard.mark_if_new(message_control_id):
             log.info(f"[{message_control_id}] Duplicate message detected; returning ACK without reprocessing")
             ack = build_ack(parsed, ack_code="AA")
