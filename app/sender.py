@@ -16,17 +16,9 @@ from datetime import datetime, timezone
 import json
 from app.core.mllp import frame_message, deframe_message, MLLP_START_BYTE, MLLP_END_BYTES
 from app.core.config import (
-    HL7_HOST, 
-    HL7_PORT, 
-    API_URL, 
-    API_TIMEOUT, 
-    MAX_RETRIES, 
-    RETRY_BACKOFF_BASE, 
-    MAX_FRAMING_ERRORS, 
     MAX_BUFFER_SIZE,
     MAX_MESSAGE_SIZE 
 )
-from app.core.retry import retry
 
 logger = logging.getLogger("hl7_publisher")
 logger.addHandler(logging.NullHandler())
@@ -65,6 +57,8 @@ class HL7Publisher:
         self._load_seen_successful_control_ids()  # <- add
 
     def _load_seen_successful_control_ids(self) -> None:
+        # Rehydrate known-success message control IDs from prior audit logs
+        # so repeat sends can be classified as skipped-already-processed.
         if not self.audit_log_path.exists():
             return
         try:
@@ -270,6 +264,8 @@ class HL7Publisher:
 
 
 def _recv_full_mllp_frame(sock, buffer_size: int = 4096, max_bytes: int = 1024 * 1024) -> bytes:
+    # Read from socket until one complete MLLP-framed ACK/NACK is received.
+    # Supports partial TCP reads and enforces a maximum frame size.
     data = b""
     while True:
         chunk = sock.recv(buffer_size)
@@ -290,6 +286,7 @@ def _recv_full_mllp_frame(sock, buffer_size: int = 4096, max_bytes: int = 1024 *
 
 
 def main():
+    # Parse CLI arguments, run sender in single/scheduled mode, and persist audit entries on exit.
     parser = argparse.ArgumentParser(description="HL7 Message Publisher")
     parser.add_argument("--file", "-f", type=Path, required=True,
                        help="HL7 message file to publish (required)")

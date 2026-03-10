@@ -1,5 +1,3 @@
-import logging
-
 def transform_hl7_to_json(message):
     if not hasattr(message, "MSH") or not message.MSH:
         raise ValueError("Missing MSH segment")

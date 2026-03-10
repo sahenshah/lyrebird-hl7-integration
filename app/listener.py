@@ -24,7 +24,7 @@ from app.core.config import (
     IDEMPOTENCY_TTL_SECONDS,
     IDEMPOTENCY_MAXSIZE,
 )
-from app.core.mllp import deframe_message, frame_message, extract_messages_from_buffer
+from app.core.mllp import frame_message, extract_messages_from_buffer
 from app.core.ack import build_ack
 from app.services.transformer import transform_hl7_to_json, normalize_hl7_segments
 from hl7apy.consts import VALIDATION_LEVEL
@@ -202,7 +202,10 @@ def handle_connection(conn, addr):
     buffer = b""
     framing_error_count = 0
     try:
-        while True:
+        # Per-connection loop:
+        # stays active for this single socket and keeps reading data frames
+        # until the client closes the connection or an unrecoverable error occurs.
+        while True: 
             data = conn.recv(4096)
             if not data:
                 break
@@ -214,7 +217,7 @@ def handle_connection(conn, addr):
             for message_str in messages:
                 process_hl7_message(message_str, conn, addr)
     except Exception as e:
-        logger.exception("Connection error")
+        logger.exception(f"Connection error: {e}")
     finally:
         conn.close()
         logger.info(f"Connection closed from {addr}")
@@ -234,6 +237,8 @@ def start_listener(host=HL7_HOST, port=HL7_PORT):
         server.listen()
         logger.info(f"Listening on {host}:{port}")
 
+        # Server accept loop:
+        # stays active for the lifetime of the service, accepting new client sockets.
         while True:
             conn, addr = server.accept()
 

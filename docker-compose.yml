@@ -1,6 +1,7 @@
 services:
   backend:
     build: .
+    container_name: fastapi-backend
     env_file:
       - .env
     extra_hosts:
