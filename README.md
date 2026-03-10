@@ -24,10 +24,8 @@ openssl req -x509 -nodes -days 365 \
 
 **2. Run stub API with TLS**
 ```sh
-# 1. Create a virtual environment (if you haven't already)
+# 1. Create and activate virtual environment (if you haven't already)
 python3 -m venv venv
-
-# 2. Activate virtual environment
 source venv/bin/activate 
 
 # 3. Install requirements (in venv)
@@ -73,8 +71,7 @@ python3 -m app.listener
 ### Send HL7 message(s) 
 ```sh
 # In new terminal
-# Activate virtual environment (if you havent already)
-source venv/bin/activate 
+source venv/bin/activate # if not already in venv 
 
 # Send single message
 python3 -m app.sender --file examples/sample_adt_a01.hl7
