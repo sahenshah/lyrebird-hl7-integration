@@ -52,10 +52,8 @@ docker compose up --build
 
 **Option 2: Run backend and listener Manually (Local Python)**
 ```sh
-# 1. Create a virtual environment (if you havent already)
+# 1. Create and activate virtual environment (if you havent already)
 python3 -m venv venv
-
-# 2. Activate virtual environment
 source venv/bin/activate 
 
 # 3. Install dependencies (in venv)
@@ -68,13 +66,14 @@ uvicorn app.api:app \
   --log-config logging_config.json
 
 # 5. Start HL7 listener (new terminal)
-source venv/bin/activate 
+source venv/bin/activate # if not already in venv 
 python3 -m app.listener
 ```
 
 ### Send HL7 message(s) 
 ```sh
 # In new terminal
+# Activate virtual environment (if you havent already)
 source venv/bin/activate 
 
 # Send single message
