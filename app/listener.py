@@ -34,10 +34,16 @@ guard = IdempotencyGuard(
     ttl_seconds=IDEMPOTENCY_TTL_SECONDS,
     maxsize=IDEMPOTENCY_MAXSIZE,
 )
+
+# Hard cap for concurrent connection handler threads
+MAX_CONNECTION_THREADS = 100
+connection_slots = threading.BoundedSemaphore(MAX_CONNECTION_THREADS)
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def configure_logging() -> None:
+    """Configure structured logging for the listener process."""
     config_path = PROJECT_ROOT / "logging_config.json"
     if not config_path.exists():
         logging.basicConfig(level=logging.INFO)
@@ -124,15 +130,35 @@ def process_hl7_message(hl7_string, conn, addr):
     try:
         # Normalize segment separators before parsing
         hl7_string = normalize_hl7_segments(hl7_string)
-        
-        # --- Check Message Size ---
+
+        # --- Check Message Size before parsing---
         if len(hl7_string) > MAX_MESSAGE_SIZE:
             raise ValueError("HL7 message too large")
-            
+
+        # --- PARSE HL7---
         parsed = parse_message(hl7_string, validation_level=VALIDATION_LEVEL.STRICT)
-        message_control_id = parsed.MSH.MSH_10.to_er7() if hasattr(parsed.MSH, "MSH_10") else "unknown"
-        patient_id = parsed.PID.PID_3.to_er7() if hasattr(parsed, "PID") and hasattr(parsed.PID, "PID_3") else "unknown"
+
+        message_control_id = (
+            parsed.MSH.MSH_10.value.strip()
+            if hasattr(parsed, "MSH")
+            and hasattr(parsed.MSH, "MSH_10")
+            and parsed.MSH.MSH_10.value
+            else None
+        )
+        patient_id = (
+            parsed.PID.PID_3.to_er7()
+            if hasattr(parsed, "PID") and hasattr(parsed.PID, "PID_3")
+            else "unknown"
+        )
         message_type = parsed.MSH.MSH_9.to_er7() if hasattr(parsed.MSH, "MSH_9") else "unknown"
+
+        # Refresh logger with parsed context
+        log = get_logger_with_context(
+            message_control_id=message_control_id or "unknown",
+            patient_id=patient_id,
+            message_type=message_type,
+            source_addr=source_addr,
+        )
 
         # --- Whitelist message types ---
         allowed_types = {"ADT^A01"}
@@ -140,22 +166,24 @@ def process_hl7_message(hl7_string, conn, addr):
             raise ValueError(f"Unsupported message type: {message_type}")
 
         # --- Validate required fields ---
-        control_id = parsed.MSH.MSH_10.value if hasattr(parsed.MSH, "MSH_10") else None
-        if not control_id:
+        if not message_control_id:
             raise ValueError("Missing message control ID")
 
+        # --- TRANSFORM HL7 -> JSON---
         hl7_json = transform_hl7_to_json(parsed)
 
-        if not guard.mark_if_new(control_id):
-            log.info(f"[{control_id}] Duplicate message detected; returning ACK without reprocessing")
+        # --- Idempotency Check---
+        if not guard.mark_if_new(message_control_id):
+            log.info(f"[{message_control_id}] Duplicate message detected; returning ACK without reprocessing")
             ack = build_ack(parsed, ack_code="AA")
         else:
             try:
+                # --- SEND TO FastAPI BACKEND---
                 send_to_api(hl7_json)
                 ack = build_ack(parsed, ack_code="AA")
             except Exception as e:
-                log.error(f"[{control_id}] Downstream processing failed after retries: {e}")
-                guard.unmark(control_id)
+                log.error(f"[{message_control_id}] Downstream processing failed after retries: {e}")
+                guard.unmark(message_control_id)
                 ack = build_ack(parsed, ack_code="AE")
 
     except Exception as e:
@@ -169,13 +197,7 @@ def process_hl7_message(hl7_string, conn, addr):
         # DO NOT close conn here
 
 def handle_connection(conn, addr):
-    """
-    Handles a single TCP connection:
-    - Receives data in a buffer.
-    - Extracts and processes complete HL7 messages.
-    - Sends ACKs for each message.
-    - Handles connection errors and closes the connection cleanly.
-    """
+    """Process one client connection: read MLLP frames, validate/transform HL7, and return ACK/NACK."""
     logger.info(f"Connection from {addr}")
     buffer = b""
     framing_error_count = 0
@@ -197,11 +219,15 @@ def handle_connection(conn, addr):
         conn.close()
         logger.info(f"Connection closed from {addr}")
 
+def _handle_connection_with_slot_release(conn, addr):
+    """Run a connection handler and always release one semaphore slot on exit."""
+    try:
+        handle_connection(conn, addr)
+    finally:
+        connection_slots.release()
+
 def start_listener(host=HL7_HOST, port=HL7_PORT):
-    """
-    Starts the TCP listener for incoming HL7 messages over MLLP.
-    Each connection is handled in a separate thread.
-    """
+    """Start the HL7 TCP listener, enforce connection-thread limits, and dispatch worker threads."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server.bind((host, port))
@@ -210,8 +236,15 @@ def start_listener(host=HL7_HOST, port=HL7_PORT):
 
         while True:
             conn, addr = server.accept()
+
+            # Non-blocking acquire: reject immediately if at capacity
+            if not connection_slots.acquire(blocking=False):
+                logger.warning(f"Connection limit reached ({MAX_CONNECTION_THREADS}); rejecting {addr}")
+                conn.close()
+                continue
+
             thread = threading.Thread(
-                target=handle_connection,
+                target=_handle_connection_with_slot_release,
                 args=(conn, addr),
                 daemon=True
             )
