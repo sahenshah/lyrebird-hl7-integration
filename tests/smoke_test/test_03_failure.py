@@ -5,6 +5,7 @@ import sys
 import uuid
 from pathlib import Path
 import socket
+import pytest
 import time
 
 
@@ -46,6 +47,19 @@ def _kill_downstream_9000() -> None:
         capture_output=True,
         text=True,
     )
+
+def _is_reachable(host: str, port: int, timeout: float = 2.0) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+    
+
+@pytest.fixture
+def send_prereqs_ready(services, downstream_api):
+    if not _is_reachable("127.0.0.1", 2575):
+        pytest.skip("Skipping send test: listener on 2575 is not reachable")
 
 
 def test_new_message_downstream_down(services, downstream_api, project_root, tmp_path):

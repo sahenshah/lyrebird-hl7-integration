@@ -28,7 +28,12 @@ from app.core.mllp import frame_message, extract_messages_from_buffer
 from app.core.ack import build_ack
 from app.services.transformer import transform_hl7_to_json, normalize_hl7_segments
 from hl7apy.consts import VALIDATION_LEVEL
-from app.core.idempotency import IdempotencyGuard
+from app.core.idempotency import (
+    IdempotencyGuard,
+    IDEMPOTENCY_NEW,
+    IDEMPOTENCY_PROCESSING,
+    IDEMPOTENCY_SUCCEEDED,
+)
 
 guard = IdempotencyGuard(
     ttl_seconds=IDEMPOTENCY_TTL_SECONDS,
@@ -173,13 +178,21 @@ def process_hl7_message(hl7_string, conn, addr):
         hl7_json = transform_hl7_to_json(parsed)
 
         # --- Idempotency Guard---
-        if not guard.mark_if_new(message_control_id):
+        idempotency_state = guard.mark_if_new(message_control_id)
+
+        if idempotency_state == IDEMPOTENCY_SUCCEEDED:
             log.info(f"[{message_control_id}] Duplicate message detected; returning ACK without reprocessing")
             ack = build_ack(parsed, ack_code="AA")
-        else:
+
+        elif idempotency_state == IDEMPOTENCY_PROCESSING:
+            log.warning(f"[{message_control_id}] Message already in-flight; returning AE")
+            ack = build_ack(parsed, ack_code="AE")
+
+        elif idempotency_state == IDEMPOTENCY_NEW:
             try:
                 # --- SEND TO FastAPI BACKEND---
                 send_to_api(hl7_json)
+                guard.mark_succeeded(message_control_id)
                 ack = build_ack(parsed, ack_code="AA")
             except Exception as e:
                 log.error(f"[{message_control_id}] Downstream processing failed after retries: {e}")

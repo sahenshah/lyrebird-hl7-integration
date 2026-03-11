@@ -15,9 +15,9 @@ class IdempotencyGuard:
 
     States
     ------
-    IDEMPOTENCY_NEW        – control ID was not present; caller must process it.
-    IDEMPOTENCY_PROCESSING – a prior attempt is still in-flight; caller should NACK.
-    IDEMPOTENCY_SUCCEEDED  – already processed successfully; caller should ACK (duplicate).
+    IDEMPOTENCY_NEW        - control ID was not present; caller must process it.
+    IDEMPOTENCY_PROCESSING - a prior attempt is still in-flight; caller should NACK.
+    IDEMPOTENCY_SUCCEEDED  - already processed successfully; caller should ACK (duplicate).
     """
 
     def __init__(self, ttl_seconds: int = 24 * 60 * 60, maxsize: int = 100_000):
