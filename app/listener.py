@@ -115,7 +115,7 @@ def send_to_api(payload):
 
     return retry(
         call_api,
-        max_attempts=MAX_RETRIES,
+        max_attempts=1,
         backoff_base=RETRY_BACKOFF_BASE,
         exceptions=(requests.RequestException,),
         logger=logger

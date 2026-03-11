@@ -30,3 +30,5 @@ DOWNSTREAM_CA_BUNDLE = os.path.expanduser(os.getenv("DOWNSTREAM_CA_BUNDLE","~/ly
 DOWNSTREAM_API_PORT = int(os.getenv("DOWNSTREAM_API_PORT", 9000))
 DOWNSTREAM_API_HOST = os.getenv("DOWNSTREAM_API_HOST", "localhost")
 DOWNSTREAM_API_URL = os.getenv("DOWNSTREAM_API_URL", "https://localhost:9000/receive")
+# Must be less than API_TIMEOUT so the backend always responds before the listener times out.
+DOWNSTREAM_API_TIMEOUT = float(os.getenv("DOWNSTREAM_API_TIMEOUT", 4.0))

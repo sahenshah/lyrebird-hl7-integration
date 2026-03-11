@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-from app.core.config import DOWNSTREAM_API_URL, DOWNSTREAM_CA_BUNDLE
+from app.core.config import DOWNSTREAM_API_URL, DOWNSTREAM_CA_BUNDLE, DOWNSTREAM_API_TIMEOUT
 import httpx 
 
 logger = logging.getLogger("app.api")
@@ -54,11 +54,11 @@ async def receive_message(payload: MessagePayload):
             raise HTTPException(status_code=502, detail="Downstream TLS configuration error")
 
     try:
-        async with httpx.AsyncClient(verify=verify_tls, timeout=10.0) as client:
+        async with httpx.AsyncClient(verify=verify_tls, timeout=DOWNSTREAM_API_TIMEOUT) as client:
             response = await client.post(DOWNSTREAM_API_URL, json=payload.model_dump())
             response.raise_for_status()
     except Exception as e:
-        logger.error(f"Failed to post to downstream API: {e}")
+        logger.error(f"Failed to post to downstream API: {type(e).__name__}: {e}")
         raise HTTPException(status_code=502, detail="Downstream API call failed")
 
     return {"status": "received"}
