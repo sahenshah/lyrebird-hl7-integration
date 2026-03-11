@@ -81,7 +81,7 @@ def get_logger_with_context(message_control_id="", patient_id="", message_type="
         }
     )
 
-def send_to_api(payload):
+def send_to_api(payload, max_attempts: int = MAX_RETRIES, backoff_base: float = RETRY_BACKOFF_BASE):
     """
     Sends the given payload to the configured API endpoint using a POST request.
     Automatically retries on transient network errors using exponential backoff,
@@ -115,8 +115,8 @@ def send_to_api(payload):
 
     return retry(
         call_api,
-        max_attempts=MAX_RETRIES,
-        backoff_base=RETRY_BACKOFF_BASE,
+        max_attempts=max_attempts,       # use parameter, not module global
+        backoff_base=backoff_base,
         exceptions=(requests.RequestException,),
         logger=logger
     )

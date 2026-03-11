@@ -15,21 +15,23 @@ def test_send_to_api_retries_and_succeeds():
         if len(calls) < 2:
             calls.append(1)
             raise requests.RequestException("Transient failure")
-        return MockResponse()  # success
+        return MockResponse()
 
-    with patch("requests.post", mock_post):
-        result = send_to_api({"foo": "bar"})
+    with patch("requests.post", mock_post), \
+         patch("app.core.retry.time.sleep"):
+        result = send_to_api({"foo": "bar"}, max_attempts=3)  # ← direct injection
         assert isinstance(result, MockResponse)
-        assert len(calls) == 2  # retried twice
+        assert len(calls) == 2
 
-def test_send_to_api_retries_configured_times(monkeypatch):
-    from app.core import config
-    monkeypatch.setattr(config, "MAX_RETRIES", 3)
+
+def test_send_to_api_retries_configured_times():
     calls = []
     def mock_post(*args, **kwargs):
         calls.append(1)
         raise requests.RequestException("Always fails")
-    with patch("requests.post", mock_post):
+
+    with patch("requests.post", mock_post), \
+         patch("app.core.retry.time.sleep"):
         with pytest.raises(requests.RequestException):
-            send_to_api({"foo": "bar"})
-    assert len(calls) == 3  # matches MAX_RETRIES
+            send_to_api({"foo": "bar"}, max_attempts=3)  # ← direct injection
+    assert len(calls) == 3
