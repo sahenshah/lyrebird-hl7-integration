@@ -302,7 +302,7 @@ def main():
                        help="Number of retry attempts")
     parser.add_argument("--delay", type=float, default=1.0,
                        help="Base delay between retries (seconds)")
-    parser.add_argument("--timeout", type=int, default=10,
+    parser.add_argument("--timeout", type=int, default=30,
                        help="Connection timeout (seconds)")
     parser.add_argument("--audit-log", type=Path,
                        help="Path for audit log file (default: ./logs/publisher_audit.jsonl)")
